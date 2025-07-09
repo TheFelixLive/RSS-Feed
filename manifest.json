@@ -1,0 +1,43 @@
+{
+  "format_version": 2,
+  "header": {
+      "description": "",
+      "name": "RSS Feed",
+      "uuid": "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
+      "version": [ 1, 0, 0],
+      "min_engine_version": [1, 21, 90]
+  },
+  "modules": [
+    {
+        "description": "",
+        "type": "data",
+        "uuid": "4ed3053b-7ce3-4ad6-84b7-0c36e7f66447",
+        "version": [1, 0, 0]
+    },
+    {
+      "description": "",
+        "type": "script",
+        "uuid": "36dbe6af-4059-46db-b846-a940a43e1bfc",
+        "version": [1, 0, 0],
+        "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name":"@minecraft/server",
+      "version":"2.0.0"
+    },
+    {
+      "module_name": "@minecraft/server-ui",
+      "version": "2.0.0"
+    },
+    {
+      "module_name": "@minecraft/server-admin",
+      "version": "1.0.0-beta"
+    },
+    {
+      "module_name": "@minecraft/server-net",
+      "version": "1.0.0-beta"
+    }
+ ]
+}
