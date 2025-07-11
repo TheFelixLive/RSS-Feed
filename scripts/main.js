@@ -6,10 +6,9 @@ import { HttpRequest, http } from '@minecraft/server-net';
 const version_info = {
   name: "RSS-Feed",
   version: "v.1.0.0",
-  build: "B001",
+  build: "B002",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1752225786,
-  update_message_period_unix: 15897600, // Normally 6 months = 15897600
+  unix: 1752242701,
   uuid: "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
   changelog: {
     // new_features
@@ -342,7 +341,7 @@ system.afterEvents.scriptEventReceive.subscribe(event=> {
 let addon_name, addon_id, addon_icon;
 system.run(() => {
   initialize_multiple_menu()
-  update_rss_feeds()
+  update_retrieved_rss_data()
 });
 
 async function initialize_multiple_menu() {
@@ -417,7 +416,7 @@ function multiple_menu(player) {
 system.run(() => {
   let save_data = load_save_data();
 
-  const default_save_data_structure = {fetch_message_time: 20, utc: undefined, update_message_unix: (version_info.unix + version_info.update_message_period_unix)};
+  const default_save_data_structure = {fetch_message_time: 1, utc: undefined};
 
   if (!save_data) {
       save_data = [default_save_data_structure];
@@ -570,6 +569,9 @@ world.afterEvents.playerSpawn.subscribe(async (eventData) => {
 
   await system.waitTicks(40); // Wait for the player to be fully joined
 
+  // Finde latest version
+  const lastest_version = JSON.parse(await req_url_content("https://api.github.com/repos/thefelixlive/RSS-Feed/releases/latest")).name;
+
   if (version_info.release_type !== 2 && save_data[player_sd_index].op) {
     player.sendMessage("§l§7[§f" + ("System") + "§7]§r "+ save_data[player_sd_index].name +" how is your experiences with "+ version_info.version +"? Does it meet your expectations? Would you like to change something and if so, what? Do you have a suggestion for a new feature? Share it at §l"+links[0].link)
     player.playSound("random.pop")
@@ -589,21 +591,14 @@ world.afterEvents.playerSpawn.subscribe(async (eventData) => {
 
 
   // Update popup
-  if (save_data[player_sd_index].op && (Math.floor(Date.now() / 1000)) > save_data[0].update_message_unix && system_privileges !== 0) {
+  if (save_data[player_sd_index].op && compareVersions(version_info.version, lastest_version) == -1 && system_privileges !== 0) {
     let form = new ActionFormData();
     form.title("Update time!");
-    form.body("Your current version (" + version_info.version + ") is older than 6 months.\nThere MIGHT be a newer version out. Feel free to update to enjoy the latest features!\n\nCheck out: §7"+links[0].link);
-    form.button("Mute");
-
+    form.body("A new version "+lastest_version+" is available.\nFeel free to update to enjoy the latest features!\n\nCheck out: §7"+links[0].link);
     const showForm = async () => {
       form.show(player).then((response) => {
         if (response.canceled && response.cancelationReason === "UserBusy") {
           showForm()
-        } else {
-          if (response.selection === 0) {
-            save_data[0].update_message_unix = (Math.floor(Date.now() / 1000)) + version_info.update_message_period_unix;
-            update_save_data(save_data);
-          }
         }
       });
     };
@@ -748,6 +743,28 @@ async function gesture_nod() {
  general helper functions
 -------------------------*/
 
+function compareVersions(version1, version2) {
+  if (!version1 || !version2) return 0
+
+  // Entfernt 'v.' falls vorhanden
+  version1 = version1.replace(/^v\./, '');
+  version2 = version2.replace(/^v\./, '');
+
+  const v1Parts = version1.split('.').map(Number);
+  const v2Parts = version2.split('.').map(Number);
+
+  // Vergleicht jeden Teil: Major, Minor, Patch
+  for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
+    const num1 = v1Parts[i] || 0;
+    const num2 = v2Parts[i] || 0;
+
+    if (num1 > num2) return 1;    // version1 ist neuer
+    if (num1 < num2) return -1;   // version2 ist neuer
+  }
+
+  return 0; // Versionen sind gleich
+}
+
 function print(input) {
   if (version_info.release_type === 0) {
     console.log(version_info.name + " - " + JSON.stringify(input))
@@ -781,7 +798,7 @@ function getRelativeTime(diff) {
 }
 
 
-export function convertUnixToDate(unixSeconds, utcOffset) {
+function convertUnixToDate(unixSeconds, utcOffset) {
   const date = new Date(unixSeconds*1000);
   const localDate = new Date(date.getTime() + utcOffset * 60 * 60 * 1000);
 
@@ -804,9 +821,6 @@ export function convertUnixToDate(unixSeconds, utcOffset) {
   };
 }
 
-
-
-
 async function req_url_content(url, player) {
   const req = new HttpRequest(url);
 
@@ -815,7 +829,11 @@ async function req_url_content(url, player) {
       const text = await response.body;
       return text
   } catch (error) {
-      return error_menu(player, 503, String(error))
+      if (player) {
+        return error_menu(player, 503, String(error))
+      } else {
+        return print(error)
+      }
   }
 }
 
@@ -883,6 +901,7 @@ function rss_to_json(xml) {
 }
 
 function populateFormWithArticles(form, entries, utcOffsetMinutes, onSelect, limit) {
+  let save_data = load_save_data()
   const now = Math.floor(Date.now() / 1000);
   const monthNames = [
     "January","February","March","April","May","June",
@@ -945,7 +964,7 @@ function populateFormWithArticles(form, entries, utcOffsetMinutes, onSelect, lim
       label = String(year);        group = `year-${year}`;
     }
 
-    if (group !== lastGroup) {
+    if (group !== lastGroup && save_data[0].utc) {
       form.label(label);
       lastGroup = group;
     }
@@ -958,11 +977,11 @@ function populateFormWithArticles(form, entries, utcOffsetMinutes, onSelect, lim
 /*------------------------
  Update RSS-Feeds
 -------------------------*/
-let rss_feeds = [];
+let retrieved_rss_data = [];
 
-// rss_feeds = [{unix: 999999}, {url: "https://...", content: ""}, {url: "https://...", content: ""}]
+// retrieved_rss_data = [{unix: 999999}, {url: "https://...", content: ""}, {url: "https://...", content: ""}]
 
-async function update_rss_feeds() {
+async function update_retrieved_rss_data() {
   let save_data = load_save_data();
   const allPlayers = world.getAllPlayers();
 
@@ -970,11 +989,12 @@ async function update_rss_feeds() {
   const nowUnix = Math.floor(Date.now() / 1000);
 
   // Falls das erste Element bereits ein Timestamp-Objekt ist, entfernen wir es
-  if (rss_feeds[0] && typeof rss_feeds[0].timestamp === 'number') {
-    rss_feeds.shift();
+  if (retrieved_rss_data[0] && typeof retrieved_rss_data[0].timestamp === 'number') {
+    retrieved_rss_data.shift();
   }
-  // Neuen Timestamp als erstes Element einfügen
-  rss_feeds.unshift({ timestamp: nowUnix });
+
+  // Neuen Timestamp mit success: true als erstes Element einfügen
+  retrieved_rss_data.unshift({ timestamp: nowUnix, success: true });
 
   // Jetzt die Feeds der Spieler einpflegen
   for (const player of allPlayers) {
@@ -982,18 +1002,25 @@ async function update_rss_feeds() {
 
     for (const rss_feed of save_data[player_sd_index].url) {
       // Nur hinzufügen, wenn der Feed noch nicht vorhanden ist
-      if (!rss_feeds.some(feed => feed.url === rss_feed)) {
+      if (!retrieved_rss_data.some(feed => feed.url === rss_feed)) {
         // HTTP-Request holen
-        const rss = await req_url_content(rss_feed, player);
+        const rss = await req_url_content(rss_feed);
+
+        // Prüfen, ob rss leer, null oder undefined ist
+        if (!rss) {
+          retrieved_rss_data = [{ timestamp: nowUnix, success: false }];
+          return;
+        }
 
         // In JSON umwandeln
         let content = rss_to_json(rss);
 
-        rss_feeds.push({ url: rss_feed, content: content });
+        retrieved_rss_data.push({ url: rss_feed, content: content });
       }
     }
   }
 }
+
 
 
 /*------------------------
@@ -1003,39 +1030,47 @@ async function update_rss_feeds() {
 function main_menu(player) {
   const form = new ActionFormData();
   const save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
   const utcOffset = Math.round((save_data[0]?.utc || 0) * 60);
-  let build_date = convertUnixToDate(rss_feeds[0].timestamp, save_data[0].utc)
-
-  form.title("Main menu");
-  form.body("Select an option!");
+  let build_date = convertUnixToDate(retrieved_rss_data[0].timestamp, save_data[0].utc)
 
   // Alle Einträge flatten
-  const allEntries = rss_feeds
-    // überspringe den ersten Feed
+  const allEntries = retrieved_rss_data
     .slice(1)
-    // flache alle Items der restlichen Feeds und füge die Quelle hinzu
     .flatMap(f =>
       f.content.channel.item.map(a => ({
         ...a,
         source: f.content.channel.title
       }))
+    )
+    .filter(entry =>
+      save_data[player_sd_index].url.some(savedUrl => savedUrl !== entry.url)
     );
 
+  form.title("Main menu");
+  form.body("Select an option!");
+
+  var max_entries = 3
 
 
-
-  // Nur die letzten 3 anzeigen
   let actions = [];
-  populateFormWithArticles(form, allEntries, utcOffset, entry => {
-    actions.push(() => reader_menu(player, entry.title, entry.description, entry.source, true));
-  }, 3);
 
-  if (allEntries.length > 3) {
-    form.button("Show all");
-    actions.push(() => all_articles(player));
+  if (allEntries.length > 0 && retrieved_rss_data[0].success) {
+    populateFormWithArticles(form, allEntries, utcOffset, entry => {
+      actions.push(() => reader_menu(player, entry.title, entry.description, entry.source, true));
+    }, max_entries);
+
+    if (allEntries.length > max_entries) {
+      form.button("Show all");
+      actions.push(() => all_articles(player));
+    }
+    form.label("§7" +(save_data[0].utc == undefined ? "Last update: "+getRelativeTime(Math.floor(Date.now() / 1000) - retrieved_rss_data[0].timestamp, player) +" ago" : `As off ${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds}`))
+
+  } else {
+    form.label("§7No Articles found" + (retrieved_rss_data[0].success? "" : " - Failed to fech"))
   }
-  form.label("§7" +(save_data[0].utc == undefined ? "Last update: "+getRelativeTime(Math.floor(Date.now() / 1000) - rss_feeds[0].timestamp, player) +" ago" : `As off ${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds}`))
   form.divider();
+
   form.button("Settings", "textures/ui/debug_glyph_color");
   actions.push(() => settings_main(player));
 
@@ -1054,9 +1089,10 @@ function main_menu(player) {
 function all_articles(player) {
   const form = new ActionFormData();
   const save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
   const utcOffset = Math.round((save_data[0]?.utc || 0) * 60);
 
-  const allEntries = rss_feeds
+  const allEntries = retrieved_rss_data
     // überspringe den ersten Feed
     .slice(1)
     // flache alle Items der restlichen Feeds und füge die Quelle hinzu
@@ -1065,6 +1101,9 @@ function all_articles(player) {
         ...a,
         source: f.content.channel.title
       }))
+    )
+    .filter(entry =>
+      save_data[player_sd_index].url.some(savedUrl => savedUrl !== entry.url)
     );
 
 
@@ -1077,8 +1116,8 @@ function all_articles(player) {
   populateFormWithArticles(form, allEntries, utcOffset, entry => {
     actions.push(() => reader_menu(player, entry.title, entry.description, entry.source));
   });
-  let build_date = convertUnixToDate(rss_feeds[0].timestamp, save_data[0].utc)
-  form.label("§7" +(save_data[0].utc == undefined ? "Last update: "+getRelativeTime(Math.floor(Date.now() / 1000) - rss_feeds[0].timestamp, player) +" ago" : `As off ${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds}`))
+  let build_date = convertUnixToDate(retrieved_rss_data[0].timestamp, save_data[0].utc)
+  form.label("§7" +(save_data[0].utc == undefined ? "Last update: "+getRelativeTime(Math.floor(Date.now() / 1000) - retrieved_rss_data[0].timestamp, player) +" ago" : `As off ${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds}`))
   form.divider();
   form.button("");
   actions.push(() => main_menu(player));
@@ -1091,18 +1130,36 @@ function all_articles(player) {
 }
 
 
-function reader_menu(player, title, text, source, is_main_menu) {
-  let form = new ActionFormData()
-  let actions = []
+function decodeHTMLEntities(text) {
+  let txt = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+  txt = txt.replace(/&quot;/g, '"')
+           .replace(/&apos;/g, "'")
+           .replace(/&amp;/g, '&')
+           .replace(/&lt;/g, '<')
+           .replace(/&gt;/g, '>');
+  return txt;
+}
 
-  if (!title || !text) return error_menu(player, 0, "Missing text")
+function stripHTML(html) {
+  return html.replace(/<[^>]*>/g, '');
+}
+
+function reader_menu(player, title, text, source, is_main_menu) {
+  let form = new ActionFormData();
+  let actions = [];
+
+  if (!title || !text) return error_menu(player, 0, "Missing text");
+
+  // Dekodiere HTML-Entities und entferne HTML-Tags
+  let decoded = decodeHTMLEntities(text);
+  let stripped = stripHTML(decoded);
 
   form.title(source || "Reader v.1.0");
-  form.body("§l"+title);
-  form.label(text)
+  form.body("§l" + title);
+  form.label(stripped);
 
   form.button("");
-  actions.push(() => is_main_menu? main_menu(player) : all_articles(player));
+  actions.push(() => is_main_menu ? main_menu(player) : all_articles(player));
 
   form.show(player).then(response => {
     if (response.selection != null && actions[response.selection]) {
@@ -1110,6 +1167,8 @@ function reader_menu(player, title, text, source, is_main_menu) {
     }
   });
 }
+
+
 
 function error_menu(player, id, description) {
   let form = new MessageFormData();
@@ -1155,10 +1214,20 @@ function settings_main(player) {
   form.body("Your self");
 
   // URLS
-  form.button("Manage RSS Feeds", "textures/ui/world_glyph_color_2x_black_outline");
-  actions.push(() => {
-    settings_links_main(player)
-  });
+  if (retrieved_rss_data[0].success) {
+
+    if (save_data[player_sd_index].url.length == 0) {
+      form.button("Add RSS Feed", "textures/ui/world_glyph_color_2x_black_outline");
+      actions.push(() => {
+        settings_links_add(player)
+      });
+    } else {
+      form.button("Manage RSS Feeds\n§9Subscribed to "+ (save_data[player_sd_index].url.length == 1? (retrieved_rss_data.find(feed => feed.url == save_data[player_sd_index].url[0]).content.channel.title) : (save_data[player_sd_index].url.length) +" feeds"), "textures/ui/world_glyph_color_2x_black_outline");
+      actions.push(() => {
+        settings_links_main(player)
+      });
+    }
+  }
 
   // Gestures
   if (system_privileges == 2) {
@@ -1172,6 +1241,7 @@ function settings_main(player) {
   if (save_data[player_sd_index].op) {
     form.divider()
     form.label("Multiplayer");
+
     form.button("Permission\n" + (() => {
       const players = world.getAllPlayers();
       const ids = players.map(p => p.id);
@@ -1184,30 +1254,35 @@ function settings_main(player) {
     actions.push(() => {
       settings_rights_main(player, true)
     });
-  }
 
-  // UTC
-  if (save_data[player_sd_index].op == true) {
-      let zone = timezone_list.find(zone => zone.utc === save_data[0].utc), zone_text;
+    // UTC
+    let zone = timezone_list.find(zone => zone.utc === save_data[0].utc), zone_text;
 
-      if (!zone) {
-        if (zone !== undefined) {
-          zone = timezone_list.reduce((closest, current) => {
-            const currentDiff = Math.abs(current.utc - save_data[0].utc);
-            const closestDiff = Math.abs(closest.utc - save_data[0].utc);
-            return currentDiff < closestDiff ? current : closest;
-          });
-          zone_text = "Prob. " + ("Prob. "+ zone.name.length > 30 ? zone.short : zone.name)
-        }
-      } else {
-        zone_text = zone.name.length > 30 ? zone.short : zone.name
+    if (!zone) {
+      if (zone !== undefined) {
+        zone = timezone_list.reduce((closest, current) => {
+          const currentDiff = Math.abs(current.utc - save_data[0].utc);
+          const closestDiff = Math.abs(closest.utc - save_data[0].utc);
+          return currentDiff < closestDiff ? current : closest;
+        });
+        zone_text = "Prob. " + ("Prob. "+ zone.name.length > 30 ? zone.short : zone.name)
       }
+    } else {
+      zone_text = zone.name.length > 30 ? zone.short : zone.name
+    }
 
 
     form.button(("Time zone") + (zone !== undefined? "\n§9"+zone_text : ""), "textures/ui/timer")
     actions.push(() => {
       settings_time_zone(player, 0);
     });
+
+    // Intervall
+    form.button("Intervall\n§9" + (save_data[0].fetch_message_time < 2? "Immediately" : save_data[0].fetch_message_time+" Minutes"), "textures/ui/icon_best3")
+    actions.push(() => {
+      settings_intervall(player)
+    });
+
   }
 
   form.divider()
@@ -1259,8 +1334,10 @@ function settings_links_main(player) {
   form.title("Manage RSS Feeds")
   form.body("Add or remove RSS feeds to your list.");
 
+  if (save_data[player_sd_index].url.length == 0) return settings_main(player);
+
   save_data[player_sd_index].url.forEach((url) => {
-    let feed = rss_feeds.find(feed => feed.url == url)
+    let feed = retrieved_rss_data.find(feed => feed.url == url)
 
     form.button(feed.content.channel.title);
     actions.push(() => {
@@ -1326,7 +1403,7 @@ async function settings_links_detail(player, imput_url) {
     content = rss_to_json(rss)
     if (!content) return error_menu(player, 0, "Failed to stringify XML to JSON")
   } else {
-    content = rss_feeds.find(feed => feed.url == imput_url).content
+    content = retrieved_rss_data.find(feed => feed.url == imput_url).content
   }
 
   // Menu
@@ -1334,7 +1411,7 @@ async function settings_links_detail(player, imput_url) {
   form.body(content.channel.description)
 
   form.button1(is_added_in_sd? "§cRemove RSS-Feed" : "§aAdd RSS-Feed")
-  actions.push(() => {
+  actions.push(async () => {
     if (is_added_in_sd) {
       const index = save_data[player_sd_index].url.findIndex(item => item === imput_url);
       if (index !== -1) {
@@ -1345,7 +1422,7 @@ async function settings_links_detail(player, imput_url) {
     }
 
     update_save_data(save_data)
-    update_rss_feeds()
+    await update_retrieved_rss_data()
     return settings_links_main(player);
   });
 
@@ -1363,6 +1440,80 @@ async function settings_links_detail(player, imput_url) {
   });
 }
 
+/*------------------------
+ Intervall
+-------------------------*/
+
+function settings_intervall(player) {
+  let form = new ActionFormData()
+  let actions = []
+  let save_data = load_save_data()
+
+  form.title("Intervall")
+  form.body("Select a time after which the rss feeds should be updated");
+
+  if (save_data[0].fetch_message_time == 1) {
+    form.button("Immediately", "textures/ui/realms_slot_check");
+  } else {
+    form.button("Immediately");
+  }
+  actions.push(() => {
+    save_data[0].fetch_message_time = 1
+    update_save_data(save_data)
+    settings_intervall(player)
+  });
+
+
+  if (save_data[0].fetch_message_time == 5) {
+    form.button("5 Minutes", "textures/ui/realms_slot_check");
+  } else {
+    form.button("5 Minutes");
+  }
+  actions.push(() => {
+    save_data[0].fetch_message_time = 5
+    update_save_data(save_data)
+    settings_intervall(player)
+  });
+
+  if (save_data[0].fetch_message_time == 10) {
+    form.button("10 Minutes", "textures/ui/realms_slot_check");
+  } else {
+    form.button("10 Minutes");
+  }
+  actions.push(() => {
+    save_data[0].fetch_message_time = 10
+    update_save_data(save_data)
+    settings_intervall(player)
+  });
+
+
+  if (save_data[0].fetch_message_time == 30) {
+    form.button("30 Minutes", "textures/ui/realms_slot_check");
+  } else {
+    form.button("30 Minutes");
+  }
+  actions.push(() => {
+    save_data[0].fetch_message_time = 30
+    update_save_data(save_data)
+    settings_intervall(player)
+  });
+
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    return settings_main(player);
+  });
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
 
 /*------------------------
  Gestures
@@ -1969,11 +2120,12 @@ function debug_main(player) {
     return close_world()
   });
 
-  form.button("Test HTTP request");
-  actions.push(async() => {
-    const content = await req_url_content("https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml", player);
-    rss_to_json(content);
-  });
+  if (!save_data[player_sd_index].url.find(url => url == "https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml")) {
+    form.button("Add ts");
+    actions.push(async() => {
+      settings_links_detail(player, "https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml")
+    });
+  }
 
   form.button("§cTest Error");
   actions.push(() => {
@@ -2167,7 +2319,7 @@ function debug_add_fake_player(player) {
  Dictionary
 -------------------------*/
 
-function dictionary_about_version(player) {
+async function dictionary_about_version(player) {
   let form = new ActionFormData()
   let actions = []
   let save_data = load_save_data()
@@ -2175,13 +2327,24 @@ function dictionary_about_version(player) {
   form.title("About")
   form.body(
     "Name: " + version_info.name + "\n" +
-    "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (version_info.update_message_period_unix + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
+    "Version: " + version_info.version + (
+      compareVersions(
+        JSON.parse(await req_url_content("https://api.github.com/repos/thefelixlive/RSS-Feed/releases/latest")).name,
+        version_info.version
+      ) == 1
+        ? " §a(update time)§r"
+        : " (" + version_info.build + ")"
+    ) + "\n" +
     "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
-    "UUID: "+version_info.uuid + "\n" +
-    "Build date: " + (save_data[0].utc == undefined ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) +" ago\n\n§7Note: Set the time zone to see detailed information" : `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`) +
-
-    "\n\n§7© "+ (build_date.year > 2025? "2025 - "+build_date.year : build_date.year )+" TheFelixLive. Licensed under the MIT License."
+    "UUID: "+ version_info.uuid + "\n" +
+    "Build date: " + (
+      save_data[0].utc == undefined
+        ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) + " ago\n\n§7Note: Set the time zone to see detailed information"
+        : `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`
+    ) +
+    "\n\n§7© "+ (build_date.year > 2025 ? "2025 - " + build_date.year : build_date.year ) + " TheFelixLive. Licensed under the MIT License."
   )
+
 
   if (version_info.changelog.new_features.length > 0 || version_info.changelog.general_changes.length > 0 || version_info.changelog.bug_fixes.length > 0) {
     form.button("§9Changelog");
@@ -2330,6 +2493,10 @@ async function update_loop() {
           update_save_data(save_data);
         }
       });
+
+      if (system.currentTick % (save_data[0].fetch_message_time * 60 * 20) == 0) {
+        update_retrieved_rss_data()
+      }
 
       await system.waitTicks(1);
     }
