@@ -1,14 +1,14 @@
 import { system, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData, MessageFormData  } from "@minecraft/server-ui"
-import { HttpRequest, HttpHeader, HttpRequestMethod, http } from '@minecraft/server-net';
+import { HttpRequest, http } from '@minecraft/server-net';
 
 
 const version_info = {
   name: "RSS-Feed",
-  version: "v.2.1.0",
-  build: "B000",
+  version: "v.1.0.0",
+  build: "B001",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1751897705,
+  unix: 1752225786,
   update_message_period_unix: 15897600, // Normally 6 months = 15897600
   uuid: "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
   changelog: {
@@ -25,11 +25,286 @@ const version_info = {
 }
 
 const links = [
-  {name: "§l§5Github:§r", link: "github.com/TheFelixLive/Command2Hardcore"},
-  {name: "§l§8Curseforge:§r", link: "curseforge.com/projects/1277546"},
-  {name: "§l§aMcpedl:§r", link: "mcpedl.com/com2hard"},
+  {name: "§l§5Github:§r", link: "github.com/TheFelixLive/RSS-Feed"},
+  /*{name: "§l§8Curseforge:§r", link: "curseforge.com/projects/1277546"},
+  {name: "§l§aMcpedl:§r", link: "mcpedl.com/com2hard"},*/
 ]
 
+const timezone_list = [
+  {
+    name: "Baker Island Time",
+    utc: -12,
+    short: "BIT",
+    location: ["Baker Island"],
+    lang: ["en_us"]
+  },
+  {
+    name: "Niue Time",
+    utc: -11,
+    short: "NUT",
+    location: ["Niue", "American Samoa"],
+    lang: ["en_us"]
+  },
+  {
+    name: "Hawaii-Aleutian Standard Time",
+    utc: -10,
+    short: "HAST",
+    location: ["Hawaii", "Honolulu"],
+    lang: ["en_us"]
+  },
+  {
+    name: "Marquesas Time",
+    utc: -9.5,
+    short: "MART",
+    location: ["Marquesas Islands"],
+    lang: ["fr_fr", "ty_ty"]
+  },
+  {
+    name: "Alaska Standard Time",
+    utc: -9,
+    short: "AKST",
+    location: ["Anchorage"],
+    lang: ["en_us"]
+  },
+  {
+    name: "Pacific Standard Time",
+    utc: -8,
+    short: "PST",
+    location: ["Los Angeles (Winter)", "Vancouver (Winter)"],
+    lang: ["en_us", "en_ca"]
+  },
+  {
+    name: "Pacific Daylight / Mountain Standard Time",
+    utc: -7,
+    short: "PDT / MST",
+    location: ["Los Angeles (Summer)", "Vancouver (Summer)", "Denver (Winter)", "Phoenix"],
+    lang: ["en_us", "en_ca"]
+  },
+  {
+    name: "Mountain Daylight / Central Standard Time",
+    utc: -6,
+    short: "MDT / CST",
+    location: ["Denver (Summer)", "Chicago (Winter)", "Mexico City (Winter)"],
+    lang: ["en_us", "es_mx"]
+  },
+  {
+    name: "Central Daylight / Eastern Standard Time",
+    utc: -5,
+    short: "CDT / EST",
+    location: ["Chicago (Summer)", "New York (Winter)", "Toronto (Winter)"],
+    lang: ["en_us", "fr_ca", "fr_fr"]
+  },
+  {
+    name: "Atlantic Standard / Eastern Daylight Time",
+    utc: -4,
+    short: "AST / EDT",
+    location: ["Santiago (Winter)", "Caracas (Winter)", "New York (Summer)", "Toronto (Summer)"],
+    lang: ["en_us", "es_cl", "es_ve", "fr_ca"]
+  },
+  {
+    name: "Newfoundland Standard Time",
+    utc: -3.5,
+    short: "NST",
+    location: ["St. John's (Winter)"],
+    lang: ["en_ca"]
+  },
+  {
+    name: "Atlantic Daylight / Argentina Time",
+    utc: -3,
+    short: "ADT / ART",
+    location: ["Santiago (Summer)", "Buenos Aires", "São Paulo"],
+    lang: ["es_cl", "es_ar", "pt_br"]
+  },
+  {
+    name: "Newfoundland Daylight Time",
+    utc: -2.5,
+    short: "NDT",
+    location: ["St. John's (Summer)"],
+    lang: ["en_ca"]
+  },
+  {
+    name: "South Georgia Time",
+    utc: -2,
+    short: "GST",
+    location: ["South Georgia"],
+    lang: ["en_gb"]
+  },
+  {
+    name: "Azores Standard Time",
+    utc: -1,
+    short: "AZOT",
+    location: ["Azores (Winter)"],
+    lang: ["pt_pt"]
+  },
+  {
+    name: "Greenwich Mean Time / Azores Summer Time",
+    utc: 0,
+    short: "GMT / AZOST",
+    location: ["London (Winter)", "Reykjavík", "Azores (Summer)"],
+    lang: ["en_gb", "is_is", "pt_pt"]
+  },
+  {
+    name: "Central European Time / British Summer Time",
+    utc: 1,
+    short: "CET / BST",
+    location: ["Berlin (Winter)", "Paris (Winter)", "Rome (Winter)", "London (Summer)"],
+    lang: [ "de_de", "de_at", "de_ch", "fr_fr", "fr_be", "fr_ch", "it_it", "en_gb"]
+  },
+  {
+    name: "Central European Summer / Eastern European Time",
+    utc: 2,
+    short: "CEST / EET",
+    location: ["Berlin (Summer)", "Paris (Summer)", "Rome (Summer)", "Athens (Winter)", "Cairo (Winter)", "Helsinki (Winter)"],
+    lang: ["de_de", "de_at", "de_ch", "fr_fr", "fr_be", "fr_ch", "it_it", "el_gr", "ar_eg", "ar_sa", "fi_fi", "sv_se"]
+  },
+  {
+    name: "Eastern European Summer / Moscow Time",
+    utc: 3,
+    short: "EEST / MSK",
+    location: ["Athens (Summer)", "Cairo (Summer)", "Moscow", "Istanbul"],
+    lang: ["el_gr", "ar_eg", "ar_sa", "ru_ru", "ru_ua", "tr_tr"]
+  },
+  {
+    name: "Iran Standard Time",
+    utc: 3.5,
+    short: "IRST",
+    location: ["Tehran (Winter)"],
+    lang: ["fa_ir"]
+  },
+  {
+    name: "Iran Daylight Time / Gulf Standard Time",
+    utc: 4,
+    short: "IRDT / GST",
+    location: ["Tehran (Summer)", "Dubai", "Abu Dhabi"],
+    lang: ["fa_ir", "ar_ae", "ar_sa"]
+  },
+  {
+    name: "Afghanistan Time",
+    utc: 4.5,
+    short: "AFT",
+    location: ["Kabul"],
+    lang: ["ps_af", "fa_ir"]
+  },
+  {
+    name: "Pakistan Standard Time",
+    utc: 5,
+    short: "PKT",
+    location: ["Karachi", "Islamabad"],
+    lang: ["en_pk", "ur_pk"]
+  },
+  {
+    name: "India Standard Time",
+    utc: 5.5,
+    short: "IST",
+    location: ["New Delhi", "Mumbai", "Colombo"],
+    lang: ["en_in", "hi_in", "si_lk", "ta_in", "ta_lk"]
+  },
+  {
+    name: "Nepal Time",
+    utc: 5.75,
+    short: "NPT",
+    location: ["Kathmandu"],
+    lang: ["ne_np"]
+  },
+  {
+    name: "Bangladesh Time",
+    utc: 6,
+    short: "BST",
+    location: ["Dhaka"],
+    lang: ["bn_bd"]
+  },
+  {
+    name: "Cocos Islands Time",
+    utc: 6.5,
+    short: "CCT",
+    location: ["Cocos Islands"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Indochina Time",
+    utc: 7,
+    short: "ICT",
+    location: ["Bangkok", "Hanoi", "Jakarta"],
+    lang: ["th_th", "vi_vn", "id_id"]
+  },
+  {
+    name: "China Standard Time",
+    utc: 8,
+    short: "CST",
+    location: ["Beijing", "Shanghai", "Singapore"],
+    lang: ["zh_cn", "en_sg", "ms_sg", "ta_sg"]
+  },
+  {
+    name: "Australian Central Western Time",
+    utc: 8.75,
+    short: "ACWST",
+    location: ["Eucla"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Japan Standard Time",
+    utc: 9,
+    short: "JST",
+    location: ["Tokyo", "Seoul"],
+    lang: ["ja_jp", "ko_kr"]
+  },
+  {
+    name: "Australian Central Standard Time",
+    utc: 9.5,
+    short: "ACST",
+    location: ["Adelaide", "Darwin"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Australian Eastern Standard Time",
+    utc: 10,
+    short: "AEST",
+    location: ["Brisbane", "Melbourne", "Sydney"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Lord Howe Standard Time",
+    utc: 10.5,
+    short: "LHST",
+    location: ["Lord Howe Island"],
+    lang: ["en_au"]
+  },
+  {
+    name: "Solomon Islands Time",
+    utc: 11,
+    short: "SBT",
+    location: ["Honiara", "New Caledonia"],
+    lang: ["en_nz", "fr_nc"]
+  },
+  {
+    name: "New Zealand Standard Time",
+    utc: 12,
+    short: "NZST",
+    location: ["Wellington", "Auckland"],
+    lang: ["en_nz", "mi_nz"]
+  },
+  {
+    name: "Chatham Islands Standard Time",
+    utc: 12.75,
+    short: "CHAST",
+    location: ["Chatham Islands"],
+    lang: ["en_nz", "mi_nz"]
+  },
+  {
+    name: "Tonga Time",
+    utc: 13,
+    short: "TOT",
+    location: ["Tonga", "Tokelau"],
+    lang: ["en_nz", "to_to"]
+  },
+  {
+    name: "Line Islands Time",
+    utc: 14,
+    short: "LINT",
+    location: ["Kiritimati", "Line Islands"],
+    lang: ["en_ki", "gil_ki"]
+  }
+];
 
 console.log("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
 
@@ -67,6 +342,7 @@ system.afterEvents.scriptEventReceive.subscribe(event=> {
 let addon_name, addon_id, addon_icon;
 system.run(() => {
   initialize_multiple_menu()
+  update_rss_feeds()
 });
 
 async function initialize_multiple_menu() {
@@ -141,7 +417,7 @@ function multiple_menu(player) {
 system.run(() => {
   let save_data = load_save_data();
 
-  const default_save_data_structure = {fetch_message_time: 20, update_message_unix: (version_info.unix + version_info.update_message_period_unix)};
+  const default_save_data_structure = {fetch_message_time: 20, utc: undefined, update_message_unix: (version_info.unix + version_info.update_message_period_unix)};
 
   if (!save_data) {
       save_data = [default_save_data_structure];
@@ -474,7 +750,7 @@ async function gesture_nod() {
 
 function print(input) {
   if (version_info.release_type === 0) {
-    console.log(version_info.name + " - " + input)
+    console.log(version_info.name + " - " + JSON.stringify(input))
   }
 }
 
@@ -505,8 +781,7 @@ function getRelativeTime(diff) {
 }
 
 
-
-function convertUnixToDate(unixSeconds, utcOffset) {
+export function convertUnixToDate(unixSeconds, utcOffset) {
   const date = new Date(unixSeconds*1000);
   const localDate = new Date(date.getTime() + utcOffset * 60 * 60 * 1000);
 
@@ -532,37 +807,328 @@ function convertUnixToDate(unixSeconds, utcOffset) {
 
 
 
+async function req_url_content(url, player) {
+  const req = new HttpRequest(url);
+
+  try {
+      const response = await http.request(req);
+      const text = await response.body;
+      return text
+  } catch (error) {
+      return error_menu(player, 503, String(error))
+  }
+}
+
+function rss_to_json(xml) {
+
+  function getTagContent(xml, tag) {
+    // Stelle sicher, dass xml ein String ist
+    const str = typeof xml === 'string' ? xml : String(xml);
+    const re = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`);
+    const m = str.match(re);
+    return m ? m[1].trim() : null;
+  }
 
 
+  function getAllTagContents(xml, tag) {
+    const str = typeof xml === 'string' ? xml : String(xml);
+    const re = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'g');
+    const results = [];
+    let m;
+    while ((m = re.exec(str)) !== null) {
+      results.push(m[1].trim());
+    }
+    return results;
+  }
+
+  function parseRSS(xml) {
+    const channelXml = getTagContent(xml, 'channel');
+    if (!channelXml) {
+      print('Kein <channel> gefunden.')
+      return -1
+    };
+
+    // Einfache Channel-Felder
+    const channel = {
+      title:        getTagContent(channelXml, 'title'),
+      link:         getTagContent(channelXml, 'link'),
+      description:  getTagContent(channelXml, 'description'),
+      language:     getTagContent(channelXml, 'language'),
+      copyright:    getTagContent(channelXml, 'copyright'),
+      lastBuildDate:getTagContent(channelXml, 'lastBuildDate'),
+      pubDate:      getTagContent(channelXml, 'pubDate'),
+    };
+
+    // Alle <item>…</item> holen
+    const itemsXml = getAllTagContents(channelXml, 'item');
+    channel.item = itemsXml.map(itemXml => ({
+      title:       getTagContent(itemXml, 'title'),
+      link:        getTagContent(itemXml, 'link'),
+      description: getTagContent(itemXml, 'description'),
+      pubDate:     getTagContent(itemXml, 'pubDate'),
+      guid:        getTagContent(itemXml, 'guid'),
+      // falls du weitere Felder brauchst, hier einfach ergänzen
+    }));
+
+    return { channel };
+  }
+
+  // === Hauptprogramm ===
+
+  // 2) Parsen
+  const rssObj = parseRSS(xml);
+
+  // 3) Return
+  return rssObj
+}
+
+function populateFormWithArticles(form, entries, utcOffsetMinutes, onSelect, limit) {
+  const now = Math.floor(Date.now() / 1000);
+  const monthNames = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+
+  // Datumsschwellen berechnen
+  const nowLocal    = new Date((now + utcOffsetMinutes * 60) * 1000);
+  const midLocal    = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
+  const todayMid    = Math.floor(midLocal.getTime() / 1000);
+  const yestMid     = todayMid - 24 * 3600;
+  const week7Mid    = todayMid - 7  * 24 * 3600;
+
+  // Einträge nach Datum sortieren und ggf. limitieren
+  const sorted = entries
+    .map(a => ({
+      ...a,
+      unix: Date.parse(a.pubDate) / 1000
+    }))
+    .sort((a, b) => b.unix - a.unix);
+
+  const sliced = typeof limit === "number" ? sorted.slice(0, limit) : sorted;
+
+  let lastGroup = null;
+  sliced.forEach(entry => {
+    const localUnix = entry.unix + utcOffsetMinutes * 60;
+    const date      = new Date(localUnix * 1000);
+    const year      = date.getFullYear();
+    const month     = date.getMonth();
+    const hour      = date.getHours();
+    const minute    = date.getMinutes();
+    const diffSec   = now - entry.unix;
+
+    let group, label;
+    if (diffSec < 3600) {
+      label = `${hour}:${String(minute).padStart(2,'0')} o'clock`;
+      group = `minute-${hour}-${minute}`;
+    } else if (diffSec < 4*3600 && localUnix >= todayMid) {
+      label = `${hour} o'clock`;
+      group = `hour-${hour}`;
+    } else if (localUnix >= todayMid && hour < 4) {
+      label = "Today Night";       group = "today-night";
+    } else if (localUnix >= todayMid && hour < 12) {
+      label = "Today Morning";     group = "today-morning";
+    } else if (localUnix >= todayMid && hour < 16) {
+      label = "Today Noon";        group = "today-noon";
+    } else if (localUnix >= todayMid && hour < 20) {
+      label = "Today Afternoon";   group = "today-afternoon";
+    } else if (localUnix >= todayMid) {
+      label = "Today Evening";     group = "today-evening";
+    } else if (localUnix >= yestMid) {
+      label = "Yesterday";         group = "yesterday";
+    } else if (localUnix >= week7Mid) {
+      label = "Last days";         group = "last-days";
+    } else if (diffSec < 14*24*3600) {
+      label = "Last week";         group = "last-week";
+    } else if (year === nowLocal.getFullYear()) {
+      label = monthNames[month];   group = `month-${month}`;
+    } else {
+      label = String(year);        group = `year-${year}`;
+    }
+
+    if (group !== lastGroup) {
+      form.label(label);
+      lastGroup = group;
+    }
+
+    form.button(entry.title, "textures/ui/icon_book_writable");
+    onSelect(entry);
+  });
+}
+
+/*------------------------
+ Update RSS-Feeds
+-------------------------*/
+let rss_feeds = [];
+
+// rss_feeds = [{unix: 999999}, {url: "https://...", content: ""}, {url: "https://...", content: ""}]
+
+async function update_rss_feeds() {
+  let save_data = load_save_data();
+  const allPlayers = world.getAllPlayers();
+
+  // Aktuellen Unix-Timestamp in Sekunden ermitteln
+  const nowUnix = Math.floor(Date.now() / 1000);
+
+  // Falls das erste Element bereits ein Timestamp-Objekt ist, entfernen wir es
+  if (rss_feeds[0] && typeof rss_feeds[0].timestamp === 'number') {
+    rss_feeds.shift();
+  }
+  // Neuen Timestamp als erstes Element einfügen
+  rss_feeds.unshift({ timestamp: nowUnix });
+
+  // Jetzt die Feeds der Spieler einpflegen
+  for (const player of allPlayers) {
+    let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+    for (const rss_feed of save_data[player_sd_index].url) {
+      // Nur hinzufügen, wenn der Feed noch nicht vorhanden ist
+      if (!rss_feeds.some(feed => feed.url === rss_feed)) {
+        // HTTP-Request holen
+        const rss = await req_url_content(rss_feed, player);
+
+        // In JSON umwandeln
+        let content = rss_to_json(rss);
+
+        rss_feeds.push({ url: rss_feed, content: content });
+      }
+    }
+  }
+}
 
 
 /*------------------------
  Menus
 -------------------------*/
 
-
 function main_menu(player) {
-  let form = new ActionFormData();
-  let actions = [];
-
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  const form = new ActionFormData();
+  const save_data = load_save_data();
+  const utcOffset = Math.round((save_data[0]?.utc || 0) * 60);
+  let build_date = convertUnixToDate(rss_feeds[0].timestamp, save_data[0].utc)
 
   form.title("Main menu");
   form.body("Select an option!");
 
-  // Button: Settings
+  // Alle Einträge flatten
+  const allEntries = rss_feeds
+    // überspringe den ersten Feed
+    .slice(1)
+    // flache alle Items der restlichen Feeds und füge die Quelle hinzu
+    .flatMap(f =>
+      f.content.channel.item.map(a => ({
+        ...a,
+        source: f.content.channel.title
+      }))
+    );
+
+
+
+
+  // Nur die letzten 3 anzeigen
+  let actions = [];
+  populateFormWithArticles(form, allEntries, utcOffset, entry => {
+    actions.push(() => reader_menu(player, entry.title, entry.description, entry.source, true));
+  }, 3);
+
+  if (allEntries.length > 3) {
+    form.button("Show all");
+    actions.push(() => all_articles(player));
+  }
+  form.label("§7" +(save_data[0].utc == undefined ? "Last update: "+getRelativeTime(Math.floor(Date.now() / 1000) - rss_feeds[0].timestamp, player) +" ago" : `As off ${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds}`))
+  form.divider();
   form.button("Settings", "textures/ui/debug_glyph_color");
-  actions.push(() => {
-    settings_main(player);
-  });
+  actions.push(() => settings_main(player));
 
   if (system_privileges !== 2) {
     form.button("");
-    actions.push(() => {
-      player.runCommand("/scriptevent multiple_menu:open_main")
-    });
+    actions.push(() => player.runCommand("/scriptevent multiple_menu:open_main"));
   }
+
+  form.show(player).then(response => {
+    if (response.selection != null && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+function all_articles(player) {
+  const form = new ActionFormData();
+  const save_data = load_save_data();
+  const utcOffset = Math.round((save_data[0]?.utc || 0) * 60);
+
+  const allEntries = rss_feeds
+    // überspringe den ersten Feed
+    .slice(1)
+    // flache alle Items der restlichen Feeds und füge die Quelle hinzu
+    .flatMap(f =>
+      f.content.channel.item.map(a => ({
+        ...a,
+        source: f.content.channel.title
+      }))
+    );
+
+
+
+  form.title("All Articles");
+  form.body("Select one of "+allEntries.length+" articles!");
+
+  let actions = [];
+  // Alle Einträge, kein Limit
+  populateFormWithArticles(form, allEntries, utcOffset, entry => {
+    actions.push(() => reader_menu(player, entry.title, entry.description, entry.source));
+  });
+  let build_date = convertUnixToDate(rss_feeds[0].timestamp, save_data[0].utc)
+  form.label("§7" +(save_data[0].utc == undefined ? "Last update: "+getRelativeTime(Math.floor(Date.now() / 1000) - rss_feeds[0].timestamp, player) +" ago" : `As off ${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds}`))
+  form.divider();
+  form.button("");
+  actions.push(() => main_menu(player));
+
+  form.show(player).then(response => {
+    if (response.selection != null && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+
+function reader_menu(player, title, text, source, is_main_menu) {
+  let form = new ActionFormData()
+  let actions = []
+
+  if (!title || !text) return error_menu(player, 0, "Missing text")
+
+  form.title(source || "Reader v.1.0");
+  form.body("§l"+title);
+  form.label(text)
+
+  form.button("");
+  actions.push(() => is_main_menu? main_menu(player) : all_articles(player));
+
+  form.show(player).then(response => {
+    if (response.selection != null && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+function error_menu(player, id, description) {
+  let form = new MessageFormData();
+  let actions = [];
+
+  form.title("Error - "+id);
+  form.body(description);
+
+  // Report
+  form.button1("Report the bug");
+  actions.push(() => {
+    dictionary_contact(player);
+  });
+
+  // Main Menu
+  form.button2("");
+  actions.push(() => {
+    main_menu(player);
+  });
 
   form.show(player).then((response) => {
     if (response.selection === undefined) {
@@ -575,11 +1141,9 @@ function main_menu(player) {
   });
 }
 
-
 /*------------------------
  Settings
 -------------------------*/
-
 
 function settings_main(player) {
   let form = new ActionFormData();
@@ -590,7 +1154,13 @@ function settings_main(player) {
   form.title("Settings");
   form.body("Your self");
 
-  // Button 3: Gestures
+  // URLS
+  form.button("Manage RSS Feeds", "textures/ui/world_glyph_color_2x_black_outline");
+  actions.push(() => {
+    settings_links_main(player)
+  });
+
+  // Gestures
   if (system_privileges == 2) {
     form.button("Gestures", "textures/ui/sidebar_icons/emotes");
     actions.push(() => {
@@ -598,11 +1168,10 @@ function settings_main(player) {
     });
   }
 
-  form.divider()
-  form.label("Multiplayer");
-
-  // Button 1: Permission
+  // Permission
   if (save_data[player_sd_index].op) {
+    form.divider()
+    form.label("Multiplayer");
     form.button("Permission\n" + (() => {
       const players = world.getAllPlayers();
       const ids = players.map(p => p.id);
@@ -617,10 +1186,34 @@ function settings_main(player) {
     });
   }
 
+  // UTC
+  if (save_data[player_sd_index].op == true) {
+      let zone = timezone_list.find(zone => zone.utc === save_data[0].utc), zone_text;
+
+      if (!zone) {
+        if (zone !== undefined) {
+          zone = timezone_list.reduce((closest, current) => {
+            const currentDiff = Math.abs(current.utc - save_data[0].utc);
+            const closestDiff = Math.abs(closest.utc - save_data[0].utc);
+            return currentDiff < closestDiff ? current : closest;
+          });
+          zone_text = "Prob. " + ("Prob. "+ zone.name.length > 30 ? zone.short : zone.name)
+        }
+      } else {
+        zone_text = zone.name.length > 30 ? zone.short : zone.name
+      }
+
+
+    form.button(("Time zone") + (zone !== undefined? "\n§9"+zone_text : ""), "textures/ui/timer")
+    actions.push(() => {
+      settings_time_zone(player, 0);
+    });
+  }
+
   form.divider()
   form.label("Version");
 
-  // Button 5: Debug
+  // Debug
   if (version_info.release_type == 0 && save_data[player_sd_index].op) {
     form.button("Debug\n", "textures/ui/ui_debug_glyph_color");
     actions.push(() => {
@@ -628,7 +1221,7 @@ function settings_main(player) {
     });
   }
 
-  // Button 6: Dictionary
+  // Dictionary
   form.button("About\n", "textures/ui/infobulb");
   actions.push(() => {
     dictionary_about_version(player)
@@ -652,6 +1245,124 @@ function settings_main(player) {
     }
   });
 }
+
+/*------------------------
+ URLs
+-------------------------*/
+
+function settings_links_main(player) {
+  let form = new ActionFormData()
+  let actions = []
+  let save_data = load_save_data()
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  form.title("Manage RSS Feeds")
+  form.body("Add or remove RSS feeds to your list.");
+
+  save_data[player_sd_index].url.forEach((url) => {
+    let feed = rss_feeds.find(feed => feed.url == url)
+
+    form.button(feed.content.channel.title);
+    actions.push(() => {
+      settings_links_detail(player, feed.url)
+    });
+  })
+
+  form.button("§aAdd RSS Feed", "textures/ui/color_plus");
+  actions.push(() => {
+    settings_links_add(player)
+  });
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    return settings_main(player);
+  });
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+function settings_links_add(player) {
+  let form = new ModalFormData()
+  let save_data = load_save_data()
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  form.title("New RSS Feed");
+
+  form.textField("URL of the RSS-Feed", "https://www.test.de/rss.xml", {tooltip: "Make sure that your URL returns a .xml file!"})
+
+  form.show(player).then((response) => {
+    if (response.formValues[0] == "" ) {
+      return settings_links_main(player)
+    }
+    return settings_links_detail(player, response.formValues[0])
+  });
+}
+
+async function settings_links_detail(player, imput_url) {
+  let form = new MessageFormData()
+  let actions = []
+
+  let save_data = load_save_data()
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  let is_added_in_sd = save_data[player_sd_index].url.find(item => item === imput_url)
+
+  let content;
+
+  if (!is_added_in_sd) {
+    // Get URL Request
+    const rss = await req_url_content(imput_url, player);
+    if (!rss) return -1
+
+    // Convert Request
+    content = rss_to_json(rss)
+    if (!content) return error_menu(player, 0, "Failed to stringify XML to JSON")
+  } else {
+    content = rss_feeds.find(feed => feed.url == imput_url).content
+  }
+
+  // Menu
+  form.title(content.channel.title)
+  form.body(content.channel.description)
+
+  form.button1(is_added_in_sd? "§cRemove RSS-Feed" : "§aAdd RSS-Feed")
+  actions.push(() => {
+    if (is_added_in_sd) {
+      const index = save_data[player_sd_index].url.findIndex(item => item === imput_url);
+      if (index !== -1) {
+        save_data[player_sd_index].url.splice(index, 1);
+      }
+    } else {
+      save_data[player_sd_index].url.push(imput_url)
+    }
+
+    update_save_data(save_data)
+    update_rss_feeds()
+    return settings_links_main(player);
+  });
+
+  form.button2("")
+  actions.push(() => {
+    return settings_links_main(player);
+  });
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
 
 /*------------------------
  Gestures
@@ -739,381 +1450,207 @@ function settings_gestures(player) {
 }
 
 /*------------------------
- Dictionary
+ Timezone
 -------------------------*/
 
-function dictionary_about_version(player) {
-  let form = new ActionFormData()
-  let actions = []
-  let save_data = load_save_data()
-  let build_date = convertUnixToDate(version_info.unix, save_data[0].utc || 0);
-  form.title("About")
-  form.body(
-    "Name: " + version_info.name + "\n" +
-    "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (version_info.update_message_period_unix + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
-    "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
-    "UUID: "+version_info.uuid + "\n" +
-    "Build date: " + (save_data[0].utc == undefined ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) +" ago\n\n§7Note: Set the time zone to see detailed information" : `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`) +
+function settings_time_zone(player, viewing_mode) {
+  const form = new ActionFormData();
+  const actions = [];
+  const save_data = load_save_data();
+  const now = new Date();
 
-    "\n\n§7© "+ (build_date.year > 2025? "2025 - "+build_date.year : build_date.year )+" TheFelixLive. Licensed under the MIT License."
-  )
+  let current_utc = save_data[0].utc;
 
-  if (version_info.changelog.new_features.length > 0 || version_info.changelog.general_changes.length > 0 || version_info.changelog.bug_fixes.length > 0) {
-    form.button("§9Changelog");
+  if (current_utc === undefined) {
+    viewing_mode = 3;
+  }
+
+  form.body("Select your current time zone!").title("Time zone");
+
+  const current_zone_index = timezone_list.findIndex(z => z.utc === current_utc)
+    ?? timezone_list.reduce((closest, zone, i) =>
+         Math.abs(zone.utc - current_utc) < Math.abs(timezone_list[closest].utc - current_utc) ? i : closest, 0);
+
+
+  const renderZoneButton = (zone, index) => {
+  const offsetMinutes = zone.utc * 60;
+
+  // UTC-Zeit in Minuten seit Mitternacht
+  const utcTotalMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+  // Lokale Zeit berechnen (immer positiv mit Modulo 1440)
+  const totalMinutes = (utcTotalMinutes + offsetMinutes + 1440) % 1440;
+
+  // Stunden und Minuten extrahieren
+  const localHours = Math.floor(totalMinutes / 60);
+  const localMinutes = totalMinutes % 60;
+
+  // Funktion zur zweistelligen Formatierung
+  const pad = (n) => n.toString().padStart(2, '0');
+
+  // Zeitformatierung mit Farben je nach Tageszeit
+  const getTimeFormat = (minutes) => {
+    const timeString = `${pad(localHours)}:${pad(localMinutes)} o'clock`;
+
+    if (minutes < 270) return "§9" + timeString;      // 00:00–04:30
+    if (minutes < 360) return "§e" + timeString;      // 04:30–06:00
+    if (minutes < 1020) return "§b" + timeString;     // 06:00–17:00
+    if (minutes < 1140) return "§e" + timeString;     // 17:00–19:00
+    return "§9" + timeString;                         // 19:00–00:00
+  };
+
+  // Name oder Kurzform je nach Länge
+  const label = (zone.name.length > 28 ? zone.short : zone.name) + "\n" + getTimeFormat(totalMinutes);
+
+
+
+
+    const getTimeIcon = (minutes) => {
+      if (minutes < 270) return "textures/ui/time_6midnight";        // 00:00–04:30
+      if (minutes < 360) return "textures/ui/time_1sunrise";         // 04:30–06:00
+      if (minutes < 720) return "textures/ui/time_2day";             // 06:00–12:00
+      if (minutes < 1020) return "textures/ui/time_3noon";           // 12:00–17:00
+      if (minutes < 1140) return "textures/ui/time_4sunset";         // 17:00–19:00
+      return "textures/ui/time_5night";                              // 19:00–00:00
+    };
+
+    const icon = index === current_zone_index
+      ? "textures/ui/realms_slot_check"
+      : getTimeIcon(totalMinutes);
+
+    form.button(label, icon);
+
     actions.push(() => {
-      dictionary_about_version_changelog(player, build_date)
+      if (icon === "textures/ui/realms_slot_check") {
+        save_data.forEach(entry => {
+          if (entry.time_source === 1) {
+            entry.time_source = 0;
+          }
+        });
+        save_data[0].utc = undefined;
+        update_save_data(save_data);
+        settings_time_zone(player);
+      } else {
+        settings_time_zone_preview(player, zone, viewing_mode);
+      }
     });
-  }
+  };
 
-  form.button("§3Contact");
-  actions.push(() => {
-    dictionary_contact(player, build_date)
-  });
 
-  form.divider()
-  form.button("");
-  actions.push(() => {
-    return settings_main(player);
-  });
 
-  form.show(player).then((response) => {
-    if (response.selection == undefined ) {
-      return -1
-    }
-    if (response.selection !== undefined && actions[response.selection]) {
-      actions[response.selection]();
-    }
-  });
-}
 
-function dictionary_contact(player, build_date) {
-  let form = new ActionFormData()
-  let save_data = load_save_data();
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  const navButton = (label, icon, mode) => {
+    form.button(label, icon);
+    actions.push(() => settings_time_zone(player, mode));
+  };
 
-  // Yes, that's right, you're not dumping the full "save_data". The player names are removed here for data protection reasons
-  save_data = save_data.map(entry => {
-    if ("name" in entry) {
-      return { ...entry, name: "" };
-    }
-    return entry;
-  });
-  // and this adds information about the dump date and version to ensure whether a dump matches a bug
-  save_data.push({ dump_unix:Math.floor(Date.now() / 1000), name:version_info.name, version:version_info.version, build:version_info.build });
-
-  let actions = []
-  form.title("Contact")
-  form.body("If you need want to report a bug, need help, or have suggestions to improvements to the project, you can reach me via these platforms:\n");
-
-  for (const entry of links) {
-    if (entry !== links[0]) form.divider()
-    form.label(`${entry.name}\n${entry.link}`);
-  }
-
-  if (save_data[player_sd_index].op) {
-    form.button("Dump SD" + (version_info.release_type !== 2? "\nvia. privat chat" : ""));
-    actions.push(() => {
-      player.sendMessage("§l§7[§f"+ ("System") + "§7]§r SD Dump:\n"+JSON.stringify(save_data))
+  const renderZones = (filterFn) => {
+    timezone_list.forEach((zone, i) => {
+      if (filterFn(i)) renderZoneButton(zone, i);
     });
+  };
 
-    if (version_info.release_type !== 2) {
-      form.button("Dump SD\nvia. server console");
-      actions.push(() => {
-        console.log(JSON.stringify(save_data))
-      });
-    }
+  if (viewing_mode === 0) {
+    let start = Math.max(0, current_zone_index - 2);
+    let end = Math.min(timezone_list.length - 1, current_zone_index + 2);
+
+    if (start > 0) navButton("Show previous time zones", "textures/ui/up_arrow", 1);
+    form.divider();
+    for (let i = start; i <= end; i++) renderZoneButton(timezone_list[i], i);
+    form.divider();
+    if (end < timezone_list.length - 1) navButton("Show later time zones", "textures/ui/down_arrow", 2);
+  } else {
+    if (viewing_mode === 1) navButton("Show less", "textures/ui/down_arrow", 0);
+    if (viewing_mode === 2 && current_zone_index !== 0) {navButton("Show previous time zones", "textures/ui/up_arrow", 3); form.divider();}
+    if (viewing_mode === 3 && current_utc !== undefined) {navButton("Show less", "textures/ui/down_arrow", 2);}
+
+    renderZones(i =>
+      viewing_mode === 3 ||
+      (viewing_mode === 1 && i <= current_zone_index) ||
+      (viewing_mode === 2 && i >= current_zone_index)
+    );
+
+    if (viewing_mode === 1 && current_zone_index !== timezone_list.length) {form.divider(); navButton("Show later time zones", "textures/ui/down_arrow", 3);}
+    if (viewing_mode === 2) {navButton("Show less", "textures/ui/up_arrow", 0)}
+    if (viewing_mode === 3 && current_utc !== undefined) {navButton("Show less", "textures/ui/up_arrow", 1)}
   }
-  form.divider()
+
   form.button("");
   actions.push(() => {
-    dictionary_about_version(player, build_date)
+    settings_main(player);
   });
-
-  form.show(player).then((response) => {
-    if (response.selection == undefined ) {
-      return -1
-    }
-    if (response.selection !== undefined && actions[response.selection]) {
-      actions[response.selection]();
-    }
-  });
-}
-
-function dictionary_about_version_changelog(player, build_date) {
-  const { new_features, general_changes, bug_fixes, unix } = version_info.changelog;
-  const sections = [
-    { title: "§l§bNew Features§r", items: new_features },
-    { title: "§l§aGeneral Changes§r", items: general_changes },
-    { title: "§l§cBug Fixes§r", items: bug_fixes }
-  ];
-
-  const form = new ActionFormData().title("Changelog - " + version_info.version);
-
-  let bodySet = false;
-  for (let i = 0; i < sections.length; i++) {
-    const { title, items } = sections[i];
-    if (items.length === 0) continue;
-
-    const content = title + "\n\n" + items.map(i => `- ${i}`).join("\n\n");
-
-    if (!bodySet) {
-      form.body(content);
-      bodySet = true;
-    } else {
-      form.label(content);
-    }
-
-    // Add divider if there's at least one more section with items
-    if (sections.slice(i + 1).some(s => s.items.length > 0)) {
-      form.divider();
-    }
-  }
-
-  const dateStr = `${build_date.day}.${build_date.month}.${build_date.year}`;
-  const relative = getRelativeTime(Math.floor(Date.now() / 1000) - unix);
-  form.label(`§7As of ${dateStr} (${relative} ago)`);
-  form.button("");
 
   form.show(player).then(res => {
-    if (res.selection === 0) dictionary_about_version(player);
+    if (res.selection === undefined) {
+      return -1
+    } else {
+      actions[res.selection]?.();
+    }
   });
+}
+
+
+function settings_time_zone_preview (player, zone, viewing_mode) {
+  const save_data = load_save_data();
+  let form = new MessageFormData();
+  const now = new Date();
+
+  const offsetMinutes = zone.utc * 60;
+
+  // UTC-Zeit in Minuten seit Mitternacht
+  const utcTotalMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+  // Lokale Zeit berechnen (immer positiv mit Modulo 1440)
+  const totalMinutes = (utcTotalMinutes + offsetMinutes + 1440) % 1440;
+
+  // Stunden und Minuten extrahieren
+  const localHours = Math.floor(totalMinutes / 60);
+  const localMinutes = totalMinutes % 60;
+
+  // Funktion zur zweistelligen Formatierung
+  const pad = (n) => n.toString().padStart(2, '0');
+
+  // Zeitformatierung mit Farben je nach Tageszeit
+  const getTimeFormat = (minutes) => {
+    const timeString = `${pad(localHours)}:${pad(localMinutes)} o'clock`;
+
+    if (minutes < 270) return "§9" + timeString;      // 00:00–04:30
+    if (minutes < 360) return "§e" + timeString;      // 04:30–06:00
+    if (minutes < 1020) return "§b" + timeString;     // 06:00–17:00
+    if (minutes < 1140) return "§e" + timeString;     // 17:00–19:00
+    return "§9" + timeString;                         // 19:00–00:00
+  };
+
+
+  form.title("Time zone");
+  form.body(
+    "Time zone: " + zone.name +
+    "\nUTC: "+ (zone.utc >= 0 ? "+" : "") + zone.utc +
+    "\nTime: " + getTimeFormat(totalMinutes) +
+    "§r\nLocation: " + zone.location.join(", ") +
+    "\n\nDo you want to use this time zone?\n "
+  )
+
+  form.button1("Switch to " +zone.short);
+  form.button2("");
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection == 0) {
+      save_data[0].utc = zone.utc;
+      update_save_data(save_data);
+      return settings_main(player);
+    }
+    settings_time_zone(player, viewing_mode);
+  });
+
 }
 
 /*------------------------
- Debug
+ Rights
 -------------------------*/
-
-
-function debug_main(player) {
-  let form = new ActionFormData()
-  let actions = []
-  let save_data = load_save_data()
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-
-  form.body("DynamicPropertyTotalByteCount: "+world.getDynamicPropertyTotalByteCount() +" of 32767 bytes used ("+Math.floor((world.getDynamicPropertyTotalByteCount()/32767)*100) +" Procent)")
-
-
-  form.button("§e\"save_data\" Editor");
-  actions.push(() => {
-    debug_sd_editor(player, () => debug_main(player), [])
-  });
-
-
-  form.button("§aAdd player (save data)");
-  actions.push(() => {
-    return debug_add_fake_player(player);
-  });
-
-  form.button("§cRemove \"save_data\"");
-  actions.push(() => {
-    world.setDynamicProperty("com2hard:save_data", undefined);
-    return close_world()
-  });
-
-  form.button("Test HTTP request");
-  actions.push(() => {
-
-    async function updateScore() {
-      const req = new HttpRequest('https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml');
-
-      try {
-          const response = await http.request(req);
-          const text = await response.body;
-          console.log('Response:', text);
-      } catch (error) {
-          console.error('Request failed:', error);
-      }
-    }
-
-    updateScore()
-  });
-
-
-  form.button("§cClose Server");
-  actions.push(() => {
-    return close_world()
-  });
-
-  form.divider()
-  form.button("");
-  actions.push(() => {
-    return settings_main(player)
-  });
-
-
-  form.show(player).then((response) => {
-    if (response.selection == undefined ) {
-    }
-    if (response.selection !== undefined && actions[response.selection]) {
-      actions[response.selection]();
-    }
-  });
-}
-
-
-function debug_sd_editor(player, onBack, path = []) {
-  const save_data = load_save_data();
-
-  let current = save_data;
-  for (const key of path) {
-    current = current[key];
-  }
-
-  const returnToCurrentMenu = () => debug_sd_editor(player, onBack, path);
-
-  if (Array.isArray(current)) {
-    const form = new ActionFormData()
-      .title("Debug Editor v.1.1")
-      .body(`Path: §7save_data/`);
-
-    current.forEach((entry, idx) => {
-      const label = idx === 0
-        ? `Server [${idx}]`
-        : `${entry.name ?? `Player ${idx}`} [${entry.id ?? idx}]`;
-      form.button(label, "textures/ui/storageIconColor");
-    });
-
-    form.button(""); // Back
-
-    form.show(player).then(res => {
-      if (res.canceled) return;
-      if (res.selection === current.length) {
-        return onBack();
-      }
-      debug_sd_editor(
-        player,
-        returnToCurrentMenu,
-        [...path, res.selection]
-      );
-    });
-
-  // === B) Object-Branch ===
-  } else if (current && typeof current === "object") {
-    const keys = Object.keys(current);
-    const displaySegments = path.map((seg, idx) => {
-      if (idx === 0) {
-        return seg === 0 ? "server" : save_data[Number(seg)]?.id ?? seg;
-      }
-      return seg;
-    });
-  const displayPath = `save_data/${displaySegments.join("/")}`;
-    const form = new ActionFormData()
-      .title("Debug Editor v.1.1")
-      .body(`Path: §7${displayPath}`);
-
-    keys.forEach(key => {
-      const val = current[key];
-      if (typeof val === "boolean") {
-        form.button(
-          `${key}\n${val ? "§aON" : "§cOFF"}`,
-          val ? "textures/ui/toggle_on" : "textures/ui/toggle_off"
-        );
-      } else if (typeof val === "number") {
-        form.button(`${key}: ${val}§r\n§9type: number`, "textures/ui/editIcon");
-      } else if (typeof val === "string") {
-        form.button(`${key}: ${val}§r\n§9type: string`, "textures/ui/editIcon");
-      } else {
-        form.button(`${key}`, "textures/ui/storageIconColor"); // verschachteltes Objekt/Array
-      }
-    });
-
-    form.button(""); // Back
-
-    form.show(player).then(res => {
-      if (res.selection == undefined ) {
-        return -1
-      }
-      // 1. Back-Button?
-      if (res.selection === keys.length) {
-        return onBack();
-      }
-
-      const key = keys[res.selection];
-      const nextPath = [...path, key];
-      const fresh = load_save_data();
-      let target = fresh;
-      for (const k of nextPath.slice(0, -1)) {
-        target = target[k];
-      }
-      const val = target[key];
-      if (typeof val === "boolean") {
-        // Boolean-Toggle
-        target[key] = !val;
-        update_save_data(fresh);
-        returnToCurrentMenu();
-
-      } else if (typeof val === "number" || typeof val === "string") {
-        // Number-Editor
-        openTextEditor(
-          player,
-          String(val),
-          nextPath,
-          newText => {
-            target[key] = newText;
-            update_save_data(fresh);
-            returnToCurrentMenu();
-          },
-          () => {
-            return -1
-          }
-        );
-
-      } else {
-        debug_sd_editor(player, returnToCurrentMenu, nextPath);
-      }
-    });
-  }
-}
-
-function openTextEditor(player, current, path, onSave, onCancel) {
-  let save_data = load_save_data()
-  const displaySegments = path.map((seg, idx) => {
-    if (idx === 0) {
-      return seg === 0 ? "server" : save_data[Number(seg)]?.id ?? seg;
-    }
-    return seg;
-  });
-
-  const fullPath = `save_data/${displaySegments.join("/")}`;
-  const form = new ModalFormData();
-  form.title("Edit Text");
-  form.textField(`Path: ${fullPath} > Value:`, "Enter text...", {defaultValue: current});
-  form.submitButton("Save");
-
-  form.show(player).then(res => {
-    if (res.canceled) {
-      return onCancel();
-    }
-
-    let input = res.formValues[0];
-    // Wenn der String nur aus Ziffern besteht, in Zahl umwandeln
-    if (/^\d+$/.test(input)) {
-      input = Number(input);
-    }
-
-    onSave(input);
-  });
-}
-
-
-
-
-
-function debug_add_fake_player(player) {
-  let form = new ModalFormData();
-
-  form.textField("Player name", player.name);
-  form.textField("Player id", player.id);
-  form.submitButton("Add player")
-
-  form.show(player).then((response) => {
-    if (response.selection == undefined ) {
-      return -1
-    }
-    create_player_save_data(response.formValues[1], response.formValues[0])
-    return debug_main(player)
-  });
-}
 
 function settings_rights_main(player, came_from_settings) {
   let form = new ActionFormData();
@@ -1402,7 +1939,370 @@ function handle_data_action(is_reset, is_delete, viewing_player, selected_save_d
   }
 }
 
+/*------------------------
+ Debug
+-------------------------*/
 
+function debug_main(player) {
+  let form = new ActionFormData()
+  let actions = []
+  let save_data = load_save_data()
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  form.body("DynamicPropertyTotalByteCount: "+world.getDynamicPropertyTotalByteCount() +" of 32767 bytes used ("+Math.floor((world.getDynamicPropertyTotalByteCount()/32767)*100) +" Procent)")
+
+
+  form.button("§e\"save_data\" Editor");
+  actions.push(() => {
+    debug_sd_editor(player, () => debug_main(player), [])
+  });
+
+
+  form.button("§aAdd player (save data)");
+  actions.push(() => {
+    return debug_add_fake_player(player);
+  });
+
+  form.button("§cRemove \"save_data\"");
+  actions.push(() => {
+    world.setDynamicProperty("com2hard:save_data", undefined);
+    return close_world()
+  });
+
+  form.button("Test HTTP request");
+  actions.push(async() => {
+    const content = await req_url_content("https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml", player);
+    rss_to_json(content);
+  });
+
+  form.button("§cTest Error");
+  actions.push(() => {
+    return error_menu(player, 418, "I’m a teapot")
+  });
+
+
+  form.button("§cClose Server");
+  actions.push(() => {
+    return close_world()
+  });
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    return settings_main(player)
+  });
+
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+function debug_sd_editor(player, onBack, path = []) {
+  const save_data = load_save_data();
+
+  let current = save_data;
+  for (const key of path) {
+    current = current[key];
+  }
+
+  const returnToCurrentMenu = () => debug_sd_editor(player, onBack, path);
+
+  if (Array.isArray(current)) {
+    const form = new ActionFormData()
+      .title("Debug Editor v.1.1")
+      .body(`Path: §7save_data/`);
+
+    current.forEach((entry, idx) => {
+      const label = idx === 0
+        ? `Server [${idx}]`
+        : `${entry.name ?? `Player ${idx}`} [${entry.id ?? idx}]`;
+      form.button(label, "textures/ui/storageIconColor");
+    });
+
+    form.button(""); // Back
+
+    form.show(player).then(res => {
+      if (res.canceled) return;
+      if (res.selection === current.length) {
+        return onBack();
+      }
+      debug_sd_editor(
+        player,
+        returnToCurrentMenu,
+        [...path, res.selection]
+      );
+    });
+
+  // === B) Object-Branch ===
+  } else if (current && typeof current === "object") {
+    const keys = Object.keys(current);
+    const displaySegments = path.map((seg, idx) => {
+      if (idx === 0) {
+        return seg === 0 ? "server" : save_data[Number(seg)]?.id ?? seg;
+      }
+      return seg;
+    });
+  const displayPath = `save_data/${displaySegments.join("/")}`;
+    const form = new ActionFormData()
+      .title("Debug Editor v.1.1")
+      .body(`Path: §7${displayPath}`);
+
+    keys.forEach(key => {
+      const val = current[key];
+      if (typeof val === "boolean") {
+        form.button(
+          `${key}\n${val ? "§aON" : "§cOFF"}`,
+          val ? "textures/ui/toggle_on" : "textures/ui/toggle_off"
+        );
+      } else if (typeof val === "number") {
+        form.button(`${key}: ${val}§r\n§9type: number`, "textures/ui/editIcon");
+      } else if (typeof val === "string") {
+        form.button(`${key}: ${val}§r\n§9type: string`, "textures/ui/editIcon");
+      } else {
+        form.button(`${key}`, "textures/ui/storageIconColor"); // verschachteltes Objekt/Array
+      }
+    });
+
+    form.button(""); // Back
+
+    form.show(player).then(res => {
+      if (res.selection == undefined ) {
+        return -1
+      }
+      // 1. Back-Button?
+      if (res.selection === keys.length) {
+        return onBack();
+      }
+
+      const key = keys[res.selection];
+      const nextPath = [...path, key];
+      const fresh = load_save_data();
+      let target = fresh;
+      for (const k of nextPath.slice(0, -1)) {
+        target = target[k];
+      }
+      const val = target[key];
+      if (typeof val === "boolean") {
+        // Boolean-Toggle
+        target[key] = !val;
+        update_save_data(fresh);
+        returnToCurrentMenu();
+
+      } else if (typeof val === "number" || typeof val === "string") {
+        // Number-Editor
+        openTextEditor(
+          player,
+          String(val),
+          nextPath,
+          newText => {
+            target[key] = newText;
+            update_save_data(fresh);
+            returnToCurrentMenu();
+          },
+          () => {
+            return -1
+          }
+        );
+
+      } else {
+        debug_sd_editor(player, returnToCurrentMenu, nextPath);
+      }
+    });
+  }
+}
+
+function openTextEditor(player, current, path, onSave, onCancel) {
+  let save_data = load_save_data()
+  const displaySegments = path.map((seg, idx) => {
+    if (idx === 0) {
+      return seg === 0 ? "server" : save_data[Number(seg)]?.id ?? seg;
+    }
+    return seg;
+  });
+
+  const fullPath = `save_data/${displaySegments.join("/")}`;
+  const form = new ModalFormData();
+  form.title("Edit Text");
+  form.textField(`Path: ${fullPath} > Value:`, "Enter text...", {defaultValue: current});
+  form.submitButton("Save");
+
+  form.show(player).then(res => {
+    if (res.canceled) {
+      return onCancel();
+    }
+
+    let input = res.formValues[0];
+    // Wenn der String nur aus Ziffern besteht, in Zahl umwandeln
+    if (/^\d+$/.test(input)) {
+      input = Number(input);
+    }
+
+    onSave(input);
+  });
+}
+
+function debug_add_fake_player(player) {
+  let form = new ModalFormData();
+
+  form.textField("Player name", player.name);
+  form.textField("Player id", player.id);
+  form.submitButton("Add player")
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    create_player_save_data(response.formValues[1], response.formValues[0])
+    return debug_main(player)
+  });
+}
+
+
+/*------------------------
+ Dictionary
+-------------------------*/
+
+function dictionary_about_version(player) {
+  let form = new ActionFormData()
+  let actions = []
+  let save_data = load_save_data()
+  let build_date = convertUnixToDate(version_info.unix, save_data[0].utc || 0);
+  form.title("About")
+  form.body(
+    "Name: " + version_info.name + "\n" +
+    "Version: " + version_info.version + ((Math.floor(Date.now() / 1000)) > (version_info.update_message_period_unix + version_info.unix)? " §a(update time)§r" : " (" + version_info.build + ")") + "\n" +
+    "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
+    "UUID: "+version_info.uuid + "\n" +
+    "Build date: " + (save_data[0].utc == undefined ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) +" ago\n\n§7Note: Set the time zone to see detailed information" : `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`) +
+
+    "\n\n§7© "+ (build_date.year > 2025? "2025 - "+build_date.year : build_date.year )+" TheFelixLive. Licensed under the MIT License."
+  )
+
+  if (version_info.changelog.new_features.length > 0 || version_info.changelog.general_changes.length > 0 || version_info.changelog.bug_fixes.length > 0) {
+    form.button("§9Changelog");
+    actions.push(() => {
+      dictionary_about_version_changelog(player, build_date)
+    });
+  }
+
+  form.button("§3Contact");
+  actions.push(() => {
+    dictionary_contact(player, build_date)
+  });
+
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    return settings_main(player);
+  });
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+function dictionary_contact(player) {
+  let form = new ActionFormData()
+  let save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  // Yes, that's right, you're not dumping the full "save_data". The player names are removed here for data protection reasons
+  save_data = save_data.map(entry => {
+    if ("name" in entry) {
+      return { ...entry, name: "" };
+    }
+    return entry;
+  });
+  // and this adds information about the dump date and version to ensure whether a dump matches a bug
+  save_data.push({ dump_unix:Math.floor(Date.now() / 1000), name:version_info.name, version:version_info.version, build:version_info.build });
+
+  let actions = []
+  form.title("Contact")
+  form.body("If you need want to report a bug, need help, or have suggestions to improvements to the project, you can reach me via these platforms:\n");
+
+  for (const entry of links) {
+    if (entry !== links[0]) form.divider()
+    form.label(`${entry.name}\n${entry.link}`);
+  }
+
+  if (save_data[player_sd_index].op) {
+    form.button("Dump SD" + (version_info.release_type !== 2? "\nvia. privat chat" : ""));
+    actions.push(() => {
+      player.sendMessage("§l§7[§f"+ ("System") + "§7]§r SD Dump:\n"+JSON.stringify(save_data))
+    });
+
+    if (version_info.release_type !== 2) {
+      form.button("Dump SD\nvia. server console");
+      actions.push(() => {
+        console.log(JSON.stringify(save_data))
+      });
+    }
+  }
+  form.divider()
+  form.button("");
+  actions.push(() => {
+    dictionary_about_version(player)
+  });
+
+  form.show(player).then((response) => {
+    if (response.selection == undefined ) {
+      return -1
+    }
+    if (response.selection !== undefined && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+function dictionary_about_version_changelog(player, build_date) {
+  const { new_features, general_changes, bug_fixes, unix } = version_info.changelog;
+  const sections = [
+    { title: "§l§bNew Features§r", items: new_features },
+    { title: "§l§aGeneral Changes§r", items: general_changes },
+    { title: "§l§cBug Fixes§r", items: bug_fixes }
+  ];
+
+  const form = new ActionFormData().title("Changelog - " + version_info.version);
+
+  let bodySet = false;
+  for (let i = 0; i < sections.length; i++) {
+    const { title, items } = sections[i];
+    if (items.length === 0) continue;
+
+    const content = title + "\n\n" + items.map(i => `- ${i}`).join("\n\n");
+
+    if (!bodySet) {
+      form.body(content);
+      bodySet = true;
+    } else {
+      form.label(content);
+    }
+
+    // Add divider if there's at least one more section with items
+    if (sections.slice(i + 1).some(s => s.items.length > 0)) {
+      form.divider();
+    }
+  }
+
+  const dateStr = `${build_date.day}.${build_date.month}.${build_date.year}`;
+  const relative = getRelativeTime(Math.floor(Date.now() / 1000) - unix);
+  form.label(`§7As of ${dateStr} (${relative} ago)`);
+  form.button("");
+
+  form.show(player).then(res => {
+    if (res.selection === 0) dictionary_about_version(player);
+  });
+}
 
 
 /*------------------------

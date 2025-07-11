@@ -173,8 +173,8 @@ This project is licensed under the [MIT License](./LICENSE).
 ### Attribution Requirements
 1. **Social Media Reviews:**
    - If you share reviews, screenshots, videos, or posts about this project on social media what I would preshade, please include:
-     - the project name: **Command2Hardcore**
-     - the official download link: `https://github.com/TheFelixLive/Command2Hardcore`
+     - the project name: **RSS-Feed**
+     - the official download link: `https://github.com/TheFelixLive/RSS-Feed`
      - the creator: **TheFelixLive**
 
 2. **Using Code in Your Own Projects:**
@@ -183,8 +183,8 @@ This project is licensed under the [MIT License](./LICENSE).
      - The reused code must be **clearly marked** with a comment in your code, for example:
         ```
         /* ─────────────────────────────────────────────────────────
-           This code is part of Command2Hardcore by TheFelixLive:
-           https://github.com/TheFelixLive/Command2Hardcore
+           This code is part of RSS-Feed by TheFelixLive:
+           https://github.com/TheFelixLive/RSS-Feed
         ─────────────────────────────────────────────────────────*/
         ```
 
