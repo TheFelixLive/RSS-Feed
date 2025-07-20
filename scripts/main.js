@@ -6,9 +6,9 @@ import { HttpRequest, http } from '@minecraft/server-net';
 const version_info = {
   name: "RSS-Feed",
   version: "v.1.0.0",
-  build: "B002",
+  build: "B003",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1752242701,
+  unix: 1753022420,
   uuid: "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
   changelog: {
     // new_features
@@ -982,6 +982,7 @@ let retrieved_rss_data = [];
 // retrieved_rss_data = [{unix: 999999}, {url: "https://...", content: ""}, {url: "https://...", content: ""}]
 
 async function update_retrieved_rss_data() {
+  retrieved_rss_data = [];
   let save_data = load_save_data();
   const allPlayers = world.getAllPlayers();
 
@@ -1368,12 +1369,9 @@ function settings_links_main(player) {
 
 function settings_links_add(player) {
   let form = new ModalFormData()
-  let save_data = load_save_data()
-  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-
   form.title("New RSS Feed");
 
-  form.textField("URL of the RSS-Feed", "https://www.test.de/rss.xml", {tooltip: "Make sure that your URL returns a .xml file!"})
+  form.textField("URL of the RSS-Feed", "https://www.test.com/rss.xml", {tooltip: "Make sure that your URL returns a .xml file!"})
 
   form.show(player).then((response) => {
     if (response.formValues[0] == "" ) {
@@ -2130,6 +2128,12 @@ function debug_main(player) {
   form.button("§cTest Error");
   actions.push(() => {
     return error_menu(player, 418, "I’m a teapot")
+  });
+
+  form.button("force refresh");
+  actions.push(() => {
+    update_retrieved_rss_data()
+    return debug_main(player)
   });
 
 

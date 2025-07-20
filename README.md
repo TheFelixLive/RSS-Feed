@@ -1,38 +1,144 @@
 # RSS-Feed
-<!-- <img src="https://github.com/user-attachments/assets/093e94d3-f5dd-4dbf-aa71-5da9e38741eb" width="1920" height="auto" /> -->
+<img width="1920" height="1080" alt="Minecraft 20 07 2025 16_21_58" src="https://github.com/user-attachments/assets/55597ac1-6f71-4887-9311-3f501274d477" />
 
 ## About
-Comming soon
+The Minecraft Bedrock RSS Reader is a script that lets players access real-time news, updates, or blog feeds directly within the game. Using this tool, you can stay informed with the latest headlines from your favorite websites or Minecraft news sources, without leaving your world.
 
-<!--
+# How to use?
+1. Open the menu (by sneaking and jumping at the same time, noding in spectator mode or by interacting with a stick)
+2. Select `Settings`
+3. Add a RSS Feed with it's URL & Have fun!
+<img width="1920" height="1080" alt="Minecraft 20 07 2025 16_22_58" src="https://github.com/user-attachments/assets/c054816a-b083-4fc0-bea8-eda23939cb7c" />
+
 # Installation
-1. **Download** the latest release from [here](https://github.com/TheFelixLive/Command2Hardcore/releases/latest).
-2. **Open** the `.mcpack` or `.mcaddon` file with Minecraft.
-3. **Create** a new world OR **edit** an existing world
-4. **Navigate to**: Behavior packs.
-5. **Click on** "Available"
-6. **Activate** the Addon
-7. `Play` or `Create` your World
--->
+
+> [!WARNING]
+> This add-on only works on a [dedicated server](https://www.minecraft.net/download/server/bedrock). Other clients (consoles, phones, etc.) can join to the server after the installation.
+
+<details open>
+   <summary>Windows (Client + Server) - Recommended</summary>
+
+   ## 1. Get the Add‑On
+   - Download the latest `.mcpack` / `.mcaddon` [here](https://github.com/TheFelixLive/RSS-Feed/releases/latest)
+
+   ## 2. Prepare your World
+   1. Double‑click the downloaded file to import it.
+   2. Launch Minecraft and open (or create) your world.
+   3. Go to **Behavior Packs → Available** and activate **RSS‑Feed**.
+   4. Under **Experiments**, enable **Beta APIs**, then **Play** or **Create**.
+   5. Close Minecraft once it’s loaded.
+
+   ## 3. Prepare the Dedicated Server
+   1. Download the latest server ZIP [here](https://www.minecraft.net/download/server/bedrock)
+   2. Extract it to a folder and run `bedrock_server.exe` once (allow firewall access).
+   3. When you see **“Server started.”**, close it.
+
+   ## 4. Copy Your World
+   1. Press `Win + R`, paste:
+      ```
+      %localappdata%\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\LocalState\games\com.mojang\minecraftWorlds
+      ```
+   2. Copy the most‑recently modified world folder into your server’s `worlds` directory.
+   3. Delete the default `Bedrock level` folder and rename your copied folder to `Bedrock level`.
+
+   ## 5. Set Up the Bedrock Dedicated Server
+   1. Open `config/default/permissions.json` in your server folder.
+   2. Replace its contents with:
+      ```json
+      {
+      "allowed_modules": [
+         "@minecraft/server-gametest",
+         "@minecraft/server",
+         "@minecraft/server-ui",
+         "@minecraft/server-admin",
+         "@minecraft/server-editor",
+         "@minecraft/server-net"
+      ]
+      }
+      ```
+   3. Run `bedrock_server.exe` again. You should see:
+      ```
+      Experiment(s) active: gtst
+      Hello from RSS‑Feed …
+      ```
+
+   ## 6. Connect & Play
+   - Run `bedrock_server.exe`
+   - In Minecraft, either join the LAN world automatically or add your [server’s IP](https://www.google.com/search?q=what's+my+local+ip+windows+and+linux) under **Servers**.
+</details>
+
+<details>
+   <summary>Server + NBT Editor</summary>
+
+   ## 1. Prepare the Dedicated Server
+   1. Download the latest server ZIP [here](https://www.minecraft.net/download/server/bedrock)
+   2. Extract it to a folder and run `bedrock_server` once (allow firewall access).
+   3. When you see **“Server started.”**, close it.
+
+   ## 2. Set Up your World
+   1. With in `worlds/Bedrock level`: Create a folder called `behavior_packs` & a file called `world_behavior_packs.json`
+   2. Paste that in to `world_behavior_packs.json`:
+      ```json
+      [
+         {
+            "pack_id" : "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
+            "version" : [ 1, 0, 0 ]
+         }
+      ]
+      ```
+   3. Delete `level.dat_old`
+   4. Open `level.dat` with a NBT Editor (e.g. [VS Code](https://marketplace.visualstudio.com/items?itemName=Misodee.vscode-nbt))
+   5. Add a Tag under experiments called `gametest` with a value of `1`
+
+   <img width="565" height="327" src="https://github.com/user-attachments/assets/1cd724d0-f923-411c-a205-139391623b57" />
+
+   7. Download the latest `.mcpack` / `.mcaddon` [here](https://github.com/TheFelixLive/RSS-Feed/releases/latest)
+   8. Extract it to `worlds/Bedrock level/behavior_packs`. You may have to rename it `.zip`
+
+   ## 3. Set Up the Bedrock Dedicated Server
+   1. Open `config/default/permissions.json` in your server folder.
+   2. Replace its contents with:
+      ```json
+      {
+      "allowed_modules": [
+         "@minecraft/server-gametest",
+         "@minecraft/server",
+         "@minecraft/server-ui",
+         "@minecraft/server-admin",
+         "@minecraft/server-editor",
+         "@minecraft/server-net"
+      ]
+      }
+      ```
+   3. Run `bedrock_server` again. You should see:
+      ```
+      Experiment(s) active: gtst
+      Hello from RSS‑Feed …
+      ```
+
+   ## 4. Connect & Play
+   - Run `bedrock_server`
+   - In Minecraft, either join the LAN world automatically or add your [server’s IP](https://www.google.com/search?q=what's+my+local+ip+windows+and+linux) under **Servers**.
+</details>
 
 # Multiple Menu
 This add-on supports multiple menus. But what does that actually mean?
-If you have at least two add-ons and want to open the menu, they will be displayed simultaneously. With multiple menu, the add-ons can communicate with each other, and only one menu will open. Just look for this icon: <img src="https://github.com/user-attachments/assets/d0c80d7c-e80b-41b1-934b-ee1dfc58d611" width="20" height="auto" />
+If you have at least two add-ons and want to open the menu, they will be displayed simultaneously. With multiple menu, the add-ons can communicate with each other, and only one menu will open. Just look for this icon: <img src="https://github.com/user-attachments/assets/43fc6418-62e1-424d-aeaa-424be79eff39" width="20" height="auto" />
 
-![Minecraft 07 07 2025 14_29_26](https://github.com/user-attachments/assets/ab0a4f52-1f36-4758-b444-f440b154c365)
+![Minecraft 07 07 2025 14_29_26](https://github.com/user-attachments/assets/99c7853d-ced4-4ddc-9280-112d37675118)
 
 > Was captured while the Timer and Command2Hard were active
 
 <details>
 <summary>Implication in your addon</summary>
-<p>If you want you can copy this code to your own addon to implement the Multiple Menu System. I do my best to describe what function have to be when called.</p>
+<p>If you want you can copy this code to your own addon to implement the Multiple Menu System. I do my best to describe what function needs to be implemented and when they’re called.</p>
 
 <pre><code>
 /* ─────────────────────────────────────────────────────────
 This code is part of the Multiple Menu System by TheFelixLive:
 ─────────────────────────────────────────────────────────*/
 
-// MUST CHAGE: Addon informations
+// MUST CHANGE: Addon information
 let addon_name = "My new Addon"
 let addon_uuid = 41bc0f18-edc3-427a-a5a8-36dede25df56 // Doesn't have to be a UUID, it just has to be unique
 let addon_texture_path = "textures/ui/hardcore/heart"
@@ -52,12 +158,10 @@ import { ActionFormData } from "@minecraft/server-ui"
 let system_privileges = 2
 
 /* This variable contains the status (or permissions) of your add-on:
-2 means the system is not active (no other packs founded);
+2 means the system is not active (no other packs found);
 1 means the system is acting as a host;
 0 means the system is acting as a client;
 */
-
-
 
 /*------------------------
  Client (an addon only needs to have the client function to be recognizable)
@@ -106,7 +210,7 @@ async function initialize_multiple_menu() {
       return -1;
    }
 
-   // Requests addon informations. Look into the Client
+   // Requests addon information. Look into the Client
    world.getDimension("overworld").runCommand("scriptevent multiple_menu:initialize");
 
    await system.waitTicks(2);
@@ -139,7 +243,7 @@ function multiple_menu(player) {
    let actions = [];
 
    form.title("Multiple menu v.1.0");
-   form.body("Select an addon to open it's menu");
+   form.body("Select an addon to open its menu");
 
    // Adds every Addon as a button
    addon_name.forEach((name, index) => {
@@ -160,19 +264,16 @@ function multiple_menu(player) {
       }
    });
 }
-
 </code></pre>
 
 </details>
-
-
 
 # License & Attribution
 This project is licensed under the [MIT License](./LICENSE).
 
 ### Attribution Requirements
 1. **Social Media Reviews:**
-   - If you share reviews, screenshots, videos, or posts about this project on social media what I would preshade, please include:
+   - If you share reviews, screenshots, videos, or posts about this project on social media—which I would appreciate—please include:
      - the project name: **RSS-Feed**
      - the official download link: `https://github.com/TheFelixLive/RSS-Feed`
      - the creator: **TheFelixLive**
