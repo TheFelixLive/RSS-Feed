@@ -1,5 +1,6 @@
 # RSS-Feed
-<img width="1920" height="1080" alt="Minecraft 20 07 2025 16_21_58" src="https://github.com/user-attachments/assets/55597ac1-6f71-4887-9311-3f501274d477" />
+![](https://github.com/user-attachments/assets/ff4ca6e3-40b3-4e04-ae4a-7e2909faaa1d)
+
 
 ## About
 The Minecraft Bedrock RSS Reader is a script that lets players access real-time news, updates, or blog feeds directly within the game. Using this tool, you can stay informed with the latest headlines from your favorite websites or Minecraft news sources, without leaving your world.
@@ -8,7 +9,7 @@ The Minecraft Bedrock RSS Reader is a script that lets players access real-time 
 1. Open the menu (by sneaking and jumping at the same time, noding in spectator mode or by interacting with a stick)
 2. Select `Settings`
 3. Add a RSS Feed with it's URL & Have fun!
-<img width="1920" height="1080" alt="Minecraft 20 07 2025 16_22_58" src="https://github.com/user-attachments/assets/c054816a-b083-4fc0-bea8-eda23939cb7c" />
+![](https://github.com/user-attachments/assets/afd554e3-fd77-4dfb-be67-a87024db300c)
 
 # Installation
 
@@ -90,7 +91,8 @@ The Minecraft Bedrock RSS Reader is a script that lets players access real-time 
    4. Open `level.dat` with a NBT Editor (e.g. [VS Code](https://marketplace.visualstudio.com/items?itemName=Misodee.vscode-nbt))
    5. Add a Tag under experiments called `gametest` with a value of `1`
 
-   <img width="565" height="327" src="https://github.com/user-attachments/assets/1cd724d0-f923-411c-a205-139391623b57" />
+   <img width="565" height="327" src="https://github.com/user-attachments/assets/8f0dfb7f-0aad-49ef-aa61-08d79e0971e9" />
+   
 
    7. Download the latest `.mcpack` / `.mcaddon` [here](https://github.com/TheFelixLive/RSS-Feed/releases/latest)
    8. Extract it to `worlds/Bedrock level/behavior_packs`. You may have to rename it `.zip`
