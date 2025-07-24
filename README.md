@@ -1,4 +1,4 @@
-# RSS-Feed
+# RSS-Feed [MCPE]
 ![](https://github.com/user-attachments/assets/ff4ca6e3-40b3-4e04-ae4a-7e2909faaa1d)
 
 
