@@ -6,9 +6,9 @@ import { HttpRequest, http } from '@minecraft/server-net';
 const version_info = {
   name: "RSS-Feed",
   version: "v.1.0.0",
-  build: "B003",
-  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1753022420,
+  build: "B004",
+  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1753351688,
   uuid: "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
   changelog: {
     // new_features
@@ -25,8 +25,8 @@ const version_info = {
 
 const links = [
   {name: "§l§5Github:§r", link: "github.com/TheFelixLive/RSS-Feed"},
-  /*{name: "§l§8Curseforge:§r", link: "curseforge.com/projects/1277546"},
-  {name: "§l§aMcpedl:§r", link: "mcpedl.com/com2hard"},*/
+  {name: "§l§8Curseforge:§r", link: "curseforge.com/projects/1310578"},
+  {name: "§l§aMcpedl:§r", link: "mcpedl.com/rss-feed"},
 ]
 
 const timezone_list = [
