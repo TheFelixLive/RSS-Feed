@@ -5,20 +5,26 @@ import { HttpRequest, http } from '@minecraft/server-net';
 
 const version_info = {
   name: "RSS-Feed",
-  version: "v.1.0.0",
-  build: "B004",
-  release_type: 2, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1753351688,
+  version: "v.1.1.0",
+  build: "B005",
+  release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
+  unix: 1754644779,
   uuid: "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
   changelog: {
     // new_features
     new_features: [
+      "Time zones can now be determined automatically",
+      "The About page got a redesigned"
     ],
     // general_changes
     general_changes: [
+      "Added Support for v.1.21.100",
+      "Added multiple menu support for v.2.0"
     ],
     // bug_fixes
     bug_fixes: [
+      "A bug has been fixed that crashes the menu if the URL of an RSS feed got invalid.",
+      "Fixed a visual bug that caused empty categories to be displayed"
     ]
   }
 }
@@ -305,49 +311,88 @@ const timezone_list = [
   }
 ];
 
-console.log("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
+print("Hello from " + version_info.name + " - "+version_info.version+" ("+version_info.build+") - Further debugging is "+ (version_info.release_type == 0? "enabled" : "disabled" ) + " by the version")
 
 
 /*------------------------
   Handshake with timer
 -------------------------*/
 
-// 2 = Standalone, 1 = Multiple Menu: Host, 0 = Multiple Menu: Client
+// Status
 let system_privileges = 2
 
+/* This variable contains the status (or permissions) of your add-on:
+2 means the system is not active (no other packs found);
+1 means the system is acting as a host;
+0 means the system is acting as a client;
+*/
+
 /*------------------------
-  Client
+ Client (an addon only needs to have the client function to be recognizable)
 -------------------------*/
 
 system.afterEvents.scriptEventReceive.subscribe(event=> {
-  if (event.id === "multiple_menu:initialize") {
-    world.scoreboard.getObjective("multiple_menu_name").setScore(version_info.uuid + "_" + version_info.name, 1);
-    world.scoreboard.getObjective("multiple_menu_icon").setScore(version_info.uuid + "_" , 1);
-    if (system_privileges == 2) system_privileges = 0;
-  }
-  if (event.id === "multiple_menu:open_main" && system_privileges == 1) {
-    multiple_menu(event.sourceEntity);
-  }
+   let player = event.sourceEntity, data
 
-  if (event.id === "multiple_menu:open_"+version_info.uuid) {
-    main_menu(event.sourceEntity);
-  }
+   if (event.id === "multiple_menu:data") {
+
+    // Reads data from the scoreboard
+    try {
+      data = JSON.parse(world.scoreboard.getObjective("mm_data").getParticipants()[0].displayName)
+    } catch (e) {
+      print("Wrong formated data!")
+      world.scoreboard.removeObjective("mm_data")
+      return -1
+    }
+    world.scoreboard.getObjective("mm_data").removeParticipant(JSON.stringify(data))
+
+
+    // Initializing
+    if (data.event == "mm_initializing") {
+      data.data.push({
+        uuid: version_info.uuid,
+        name: version_info.name
+      })
+
+      if (system_privileges == 2) system_privileges = 0;
+
+      // Saves data in to the scoreboard
+      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify(data), 1)
+    }
+
+
+    // Will open the main menu of your addon
+    if (data.event == "mm_open" && data.data.traget == version_info.uuid) {
+        main_menu(player);
+        world.scoreboard.removeObjective("mm_data")
+    }
+
+
+    // Host Only (which is why system_privileges == 1): Opens the multiple menu, is called by other addons as a back button
+    if (data.event == "mm_open" && data.data.traget == "main" && system_privileges == 1) {
+        multiple_menu(player);
+        world.scoreboard.removeObjective("mm_data")
+    }
+   }
 })
 
-
 /*------------------------
-  Host
+ Host
 -------------------------*/
-let addon_name, addon_id, addon_icon;
+
+let addon_list; // When initialized properly, it contains the data of all supported add-ons
+
 system.run(() => {
-  initialize_multiple_menu()
-  update_retrieved_rss_data()
+   initialize_multiple_menu()
+   update_retrieved_rss_data()
 });
 
 async function initialize_multiple_menu() {
+  // This fallback ensures that even if multiple add-ons could act as host, only one of them will be used as the host.
   try {
-    world.scoreboard.addObjective("multiple_menu_name");
-    world.scoreboard.addObjective("multiple_menu_icon");
+    world.scoreboard.addObjective("mm_data");
+    world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_initializing", data:[]}), 1);
+
     print("Multiple Menu: Initializing Host");
     system_privileges = 1;
   } catch (e) {
@@ -355,39 +400,50 @@ async function initialize_multiple_menu() {
     return -1;
   }
 
-  world.getDimension("overworld").runCommand("scriptevent multiple_menu:initialize");
+  // Requests addon information. Look into the Client
+  world.getDimension("overworld").runCommand("scriptevent multiple_menu:data");
 
   await system.waitTicks(2);
   print("Multiple Menu: successfully initialized as Host");
 
-  const participants = world.scoreboard.getObjective("multiple_menu_name").getParticipants();
-  addon_id = participants.map(p => p.displayName.split("_")[0]);
-  addon_name = participants.map(p => p.displayName.split("_").slice(1).join("_"));
-  addon_icon = world.scoreboard.getObjective("multiple_menu_icon").getParticipants().map(p => p.displayName.split("_").slice(1).join("_"));
+  // Evaluation of the add-on information
+  let data = JSON.parse(world.scoreboard.getObjective("mm_data").getParticipants()[0].displayName)
+  world.scoreboard.removeObjective("mm_data")
 
-  if (addon_id.length == 1) {
+  addon_list = data.data
+
+  if (data.data.length == 0) {
     print("Multiple Menu: no other plugin found");
     system_privileges = 2;
   }
-
-  world.scoreboard.removeObjective("multiple_menu_name")
-  world.scoreboard.removeObjective("multiple_menu_icon")
 }
 
 function multiple_menu(player) {
   let form = new ActionFormData();
   let actions = [];
 
-  form.title("Multiple menu v.1.0");
+  form.title("Multiple menu v.2.0");
   form.body("Select an addon to open it's menu");
 
-  addon_name.forEach((name, index) => {
-    form.button(name, addon_icon[index]);
+  addon_list.forEach((addon) => {
+    // Icon
+    if (addon.icon) {
+      form.button(addon.name, addon.icon);
+    }
+    // Only Name
+    else if (addon.name) {
+      form.button(addon.name);
+    } else {
+      form.button(addon.uuid);
+    }
 
     actions.push(() => {
-      player.runCommand("scriptevent multiple_menu:open_"+ addon_id[index]);
+      world.scoreboard.addObjective("mm_data");
+      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_open", data:{traget: addon.uuid}}), 1);
+      player.runCommand("scriptevent multiple_menu:data");
     });
   });
+
   form.divider()
   form.label("Settings")
 
@@ -411,12 +467,11 @@ function multiple_menu(player) {
  Save Data
 -------------------------*/
 
-
 // Creates or Updates Save Data if not present
 system.run(() => {
   let save_data = load_save_data();
 
-  const default_save_data_structure = {fetch_message_time: 1, utc: undefined};
+  const default_save_data_structure = {fetch_message_time: 1, utc: undefined, utc_auto: true};
 
   if (!save_data) {
       save_data = [default_save_data_structure];
@@ -462,7 +517,7 @@ system.run(() => {
 
 // Load & Save Save data
 function load_save_data() {
-    let rawData = world.getDynamicProperty("com2hard:save_data");
+    let rawData = world.getDynamicProperty("rss:save_data");
 
     if (!rawData) {
         return;
@@ -473,7 +528,7 @@ function load_save_data() {
 
 
 function update_save_data(input) {
-    world.setDynamicProperty("com2hard:save_data", JSON.stringify(input))
+    world.setDynamicProperty("rss:save_data", JSON.stringify(input))
 };
 
 function delete_player_save_data(player) {
@@ -560,7 +615,7 @@ world.afterEvents.playerJoin.subscribe(({ playerId, playerName }) => {
   create_player_save_data(playerId, playerName);
 })
 
-// TODO
+
 world.afterEvents.playerSpawn.subscribe(async (eventData) => {
   const { player, initialSpawn } = eventData;
   if (!initialSpawn) return -1
@@ -569,9 +624,7 @@ world.afterEvents.playerSpawn.subscribe(async (eventData) => {
 
   await system.waitTicks(40); // Wait for the player to be fully joined
 
-  // Finde latest version
-  const lastest_version = JSON.parse(await req_url_content("https://api.github.com/repos/thefelixlive/RSS-Feed/releases/latest")).name;
-
+  // ADD
   if (version_info.release_type !== 2 && save_data[player_sd_index].op) {
     player.sendMessage("§l§7[§f" + ("System") + "§7]§r "+ save_data[player_sd_index].name +" how is your experiences with "+ version_info.version +"? Does it meet your expectations? Would you like to change something and if so, what? Do you have a suggestion for a new feature? Share it at §l"+links[0].link)
     player.playSound("random.pop")
@@ -589,21 +642,7 @@ world.afterEvents.playerSpawn.subscribe(async (eventData) => {
     }
   }
 
-
-  // Update popup
-  if (save_data[player_sd_index].op && compareVersions(version_info.version, lastest_version) == -1 && system_privileges !== 0) {
-    let form = new ActionFormData();
-    form.title("Update time!");
-    form.body("A new version "+lastest_version+" is available.\nFeel free to update to enjoy the latest features!\n\nCheck out: §7"+links[0].link);
-    const showForm = async () => {
-      form.show(player).then((response) => {
-        if (response.canceled && response.cancelationReason === "UserBusy") {
-          showForm()
-        }
-      });
-    };
-    showForm();
-  }
+  update_retrieved_rss_data()
 });
 
 /*------------------------
@@ -742,28 +781,6 @@ async function gesture_nod() {
 /*------------------------
  general helper functions
 -------------------------*/
-
-function compareVersions(version1, version2) {
-  if (!version1 || !version2) return 0
-
-  // Entfernt 'v.' falls vorhanden
-  version1 = version1.replace(/^v\./, '');
-  version2 = version2.replace(/^v\./, '');
-
-  const v1Parts = version1.split('.').map(Number);
-  const v2Parts = version2.split('.').map(Number);
-
-  // Vergleicht jeden Teil: Major, Minor, Patch
-  for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
-    const num1 = v1Parts[i] || 0;
-    const num2 = v2Parts[i] || 0;
-
-    if (num1 > num2) return 1;    // version1 ist neuer
-    if (num1 < num2) return -1;   // version2 ist neuer
-  }
-
-  return 0; // Versionen sind gleich
-}
 
 function print(input) {
   if (version_info.release_type === 0) {
@@ -974,9 +991,20 @@ function populateFormWithArticles(form, entries, utcOffsetMinutes, onSelect, lim
   });
 }
 
+function decodeHTMLEntities(text) {
+  let txt = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+  txt = txt.replace(/&quot;/g, '"')
+           .replace(/&apos;/g, "'")
+           .replace(/&amp;/g, '&')
+           .replace(/&lt;/g, '<')
+           .replace(/&gt;/g, '>');
+  return txt;
+}
+
 /*------------------------
  Update RSS-Feeds
 -------------------------*/
+
 let retrieved_rss_data = [];
 
 // retrieved_rss_data = [{unix: 999999}, {url: "https://...", content: ""}, {url: "https://...", content: ""}]
@@ -1000,29 +1028,160 @@ async function update_retrieved_rss_data() {
   // Jetzt die Feeds der Spieler einpflegen
   for (const player of allPlayers) {
     let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+    if (player_sd_index === -1) continue;
+
+    let filtered_urls = [];
 
     for (const rss_feed of save_data[player_sd_index].url) {
-      // Nur hinzufügen, wenn der Feed noch nicht vorhanden ist
-      if (!retrieved_rss_data.some(feed => feed.url === rss_feed)) {
-        // HTTP-Request holen
-        const rss = await req_url_content(rss_feed);
+      const rss = await req_url_content(rss_feed);
 
-        // Prüfen, ob rss leer, null oder undefined ist
-        if (!rss) {
-          retrieved_rss_data = [{ timestamp: nowUnix, success: false }];
-          return;
-        }
+      if (!rss) {
+        retrieved_rss_data = [{ timestamp: nowUnix, success: false }];
+        return;
+      }
 
-        // In JSON umwandeln
-        let content = rss_to_json(rss);
+      let content = rss_to_json(rss);
 
+      if (content != -1) {
         retrieved_rss_data.push({ url: rss_feed, content: content });
+        filtered_urls.push(rss_feed);
       }
     }
+    save_data[player_sd_index].url = filtered_urls;
+    update_save_data(save_data)
   }
 }
 
+/*------------------------
+ Update data (github)
+-------------------------*/
 
+let github_data
+
+system.run(() => {
+  update_github_data()
+});
+
+async function update_github_data() {
+  try {
+    let response = JSON.parse(await req_url_content("https://api.github.com/repos/TheFelixLive/RSS-Feed/releases"));
+    github_data = response.map(release => {
+      const totalDownloads = release.assets?.reduce((sum, asset) => sum + (asset.download_count || 0), 0) || 0;
+      return {
+        tag: release.tag_name,
+        name: release.name,
+        prerelease: release.prerelease,
+        published_at: release.published_at,
+        body: release.body,
+        download_count: totalDownloads
+      };
+    });
+
+  } catch (e) {}
+
+}
+
+
+function compareVersions(version1, version2) {
+  if (!version1 || !version2) return 0;
+
+  // Entfernt 'v.' oder 'V.' am Anfang
+  version1 = version1.replace(/^v\./i, '').trim();
+  version2 = version2.replace(/^v\./i, '').trim();
+
+  // Extrahiere Beta-Nummer aus "_1" oder " Beta 1"
+  function extractBeta(version) {
+    const betaMatch = version.match(/^(.*?)\s*(?:_|\sBeta\s*)(\d+)$/i);
+    if (betaMatch) {
+      return {
+        base: betaMatch[1].trim(),
+        beta: parseInt(betaMatch[2], 10)
+      };
+    }
+    return {
+      base: version,
+      beta: null
+    };
+  }
+
+  const v1 = extractBeta(version1);
+  const v2 = extractBeta(version2);
+
+  const v1Parts = v1.base.split('.').map(Number);
+  const v2Parts = v2.base.split('.').map(Number);
+
+  // Vergleicht Major, Minor, Patch
+  for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
+    const num1 = v1Parts[i] || 0;
+    const num2 = v2Parts[i] || 0;
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+
+  // Wenn gleich, vergleiche Beta
+  if (v1.beta !== null && v2.beta === null) return -1; // Beta < Vollversion
+  if (v1.beta === null && v2.beta !== null) return 1;  // Vollversion > Beta
+
+  if (v1.beta !== null && v2.beta !== null) {
+    if (v1.beta > v2.beta) return 1;
+    if (v1.beta < v2.beta) return -1;
+  }
+
+  return 0;
+}
+
+
+
+
+/*------------------------
+ Auto Timezone
+-------------------------*/
+
+let server_ip, server_utc
+
+system.run(() => {
+  update_server_utc()
+});
+
+async function update_server_utc() {
+  try {
+    let response = JSON.parse(await req_url_content("https://ipwho.is/?fields=ip,timezone"));
+    server_ip = response.ip
+    server_utc = offsetToDecimal(response.timezone.utc)
+  } catch (e) {}
+
+  let save_data = load_save_data()
+
+  if (save_data[0].utc_auto) {
+    if (server_utc) {
+      save_data[0].utc = server_utc
+    } else if (!save_data[0].utc) {
+      save_data[0].utc_auto = false
+    }
+
+    update_save_data(save_data)
+  }
+}
+
+function offsetToDecimal(offsetStr) {
+    // Prüfe auf das richtige Format (z. B. +02:00 oder -03:30)
+    const match = offsetStr.match(/^([+-])(\d{2}):(\d{2})$/);
+    if (!match) {
+        throw new Error("Ungültiges Format. Erwartet wird z.B. '+02:00' oder '-03:30'");
+    }
+
+    const sign = match[1] === '+' ? 1 : -1;
+    const hours = parseInt(match[2], 10);
+    const minutes = parseInt(match[3], 10);
+
+    // Umwandlung in Kommazahl (Dezimalstunden)
+    const decimal = sign * (hours + minutes / 60);
+    return decimal;
+}
+
+function stripHTML(html) {
+  return html.replace(/<[^>]*>/g, '');
+}
 
 /*------------------------
  Menus
@@ -1077,7 +1236,11 @@ function main_menu(player) {
 
   if (system_privileges !== 2) {
     form.button("");
-    actions.push(() => player.runCommand("/scriptevent multiple_menu:open_main"));
+    actions.push(() => {
+      world.scoreboard.addObjective("mm_data");
+      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_open", data:{traget: "main"}}), 1);
+      player.runCommand("scriptevent multiple_menu:data");
+    });
   }
 
   form.show(player).then(response => {
@@ -1130,21 +1293,6 @@ function all_articles(player) {
   });
 }
 
-
-function decodeHTMLEntities(text) {
-  let txt = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
-  txt = txt.replace(/&quot;/g, '"')
-           .replace(/&apos;/g, "'")
-           .replace(/&amp;/g, '&')
-           .replace(/&lt;/g, '<')
-           .replace(/&gt;/g, '>');
-  return txt;
-}
-
-function stripHTML(html) {
-  return html.replace(/<[^>]*>/g, '');
-}
-
 function reader_menu(player, title, text, source, is_main_menu) {
   let form = new ActionFormData();
   let actions = [];
@@ -1168,8 +1316,6 @@ function reader_menu(player, title, text, source, is_main_menu) {
     }
   });
 }
-
-
 
 function error_menu(player, id, description) {
   let form = new MessageFormData();
@@ -1210,9 +1356,11 @@ function settings_main(player) {
   let actions = [];
   let save_data = load_save_data();
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
-
   form.title("Settings");
-  form.body("Your self");
+
+  if (retrieved_rss_data[0].success || system_privileges == 2) {
+    form.body("Your self");
+  }
 
   // URLS
   if (retrieved_rss_data[0].success) {
@@ -1223,7 +1371,7 @@ function settings_main(player) {
         settings_links_add(player)
       });
     } else {
-      form.button("Manage RSS Feeds\n§9Subscribed to "+ (save_data[player_sd_index].url.length == 1? (retrieved_rss_data.find(feed => feed.url == save_data[player_sd_index].url[0]).content.channel.title) : (save_data[player_sd_index].url.length) +" feeds"), "textures/ui/world_glyph_color_2x_black_outline");
+      form.button("Manage RSS Feeds\n§9Subscribed to "+ (save_data[player_sd_index].url.length) + (save_data[player_sd_index].url.length == 1? " feed" : " feeds"), "textures/ui/world_glyph_color_2x_black_outline");
       actions.push(() => {
         settings_links_main(player)
       });
@@ -1240,8 +1388,12 @@ function settings_main(player) {
 
   // Permission
   if (save_data[player_sd_index].op) {
-    form.divider()
-    form.label("Multiplayer");
+    if (retrieved_rss_data[0].success || system_privileges == 2) {
+      form.divider()
+      form.label("Multiplayer");
+    } else {
+      form.body("Multiplayer");
+    }
 
     form.button("Permission\n" + (() => {
       const players = world.getAllPlayers();
@@ -1275,6 +1427,7 @@ function settings_main(player) {
 
     form.button(("Time zone") + (zone !== undefined? "\n§9"+zone_text : ""), "textures/ui/timer")
     actions.push(() => {
+      if (save_data[0].utc_auto) return settings_time_zone_preview(player, zone)
       settings_time_zone(player, 0);
     });
 
@@ -1286,8 +1439,12 @@ function settings_main(player) {
 
   }
 
-  form.divider()
-  form.label("Version");
+  if (retrieved_rss_data[0].success || system_privileges == 2 || save_data[player_sd_index].op) {
+    form.divider()
+    form.label("Version");
+  } else {
+    form.body("Version");
+  }
 
   // Debug
   if (version_info.release_type == 0 && save_data[player_sd_index].op) {
@@ -1298,9 +1455,9 @@ function settings_main(player) {
   }
 
   // Dictionary
-  form.button("About\n", "textures/ui/infobulb");
+  form.button("About\n" + (github_data? (compareVersions(version_info.release_type === 2 ? github_data.find(r => !r.prerelease)?.tag : github_data[0]?.tag, version_info.version) !== 1? "" : "§9Update available!"): ""), "textures/ui/infobulb");
   actions.push(() => {
-    dictionary_about_version(player)
+    dictionary_about(player, false)
   });
 
   form.divider()
@@ -1340,9 +1497,9 @@ function settings_links_main(player) {
   save_data[player_sd_index].url.forEach((url) => {
     let feed = retrieved_rss_data.find(feed => feed.url == url)
 
-    form.button(feed.content.channel.title);
+    form.button(feed? feed.content.channel.title : url);
     actions.push(() => {
-      settings_links_detail(player, feed.url)
+      settings_links_detail(player, url)
     });
   })
 
@@ -1585,7 +1742,9 @@ function settings_gestures(player) {
     if (system_privileges == 2) {
       settings_main(player);
     } else {
-      player.runCommand("scriptevent multiple_menu:open_main");
+      world.scoreboard.addObjective("mm_data");
+      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_open", data:{traget: "main"}}), 1);
+      player.runCommand("scriptevent multiple_menu:data");
     }
   });
 
@@ -1621,39 +1780,35 @@ function settings_time_zone(player, viewing_mode) {
          Math.abs(zone.utc - current_utc) < Math.abs(timezone_list[closest].utc - current_utc) ? i : closest, 0);
 
 
-  const renderZoneButton = (zone, index) => {
-  const offsetMinutes = zone.utc * 60;
+  const renderZoneButton = (zone, index, switch_to_auto) => {
+    const offsetMinutes = zone.utc * 60;
 
-  // UTC-Zeit in Minuten seit Mitternacht
-  const utcTotalMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+    // UTC-Zeit in Minuten seit Mitternacht
+    const utcTotalMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
 
-  // Lokale Zeit berechnen (immer positiv mit Modulo 1440)
-  const totalMinutes = (utcTotalMinutes + offsetMinutes + 1440) % 1440;
+    // Lokale Zeit berechnen (immer positiv mit Modulo 1440)
+    const totalMinutes = (utcTotalMinutes + offsetMinutes + 1440) % 1440;
 
-  // Stunden und Minuten extrahieren
-  const localHours = Math.floor(totalMinutes / 60);
-  const localMinutes = totalMinutes % 60;
+    // Stunden und Minuten extrahieren
+    const localHours = Math.floor(totalMinutes / 60);
+    const localMinutes = totalMinutes % 60;
 
-  // Funktion zur zweistelligen Formatierung
-  const pad = (n) => n.toString().padStart(2, '0');
+    // Funktion zur zweistelligen Formatierung
+    const pad = (n) => n.toString().padStart(2, '0');
 
-  // Zeitformatierung mit Farben je nach Tageszeit
-  const getTimeFormat = (minutes) => {
-    const timeString = `${pad(localHours)}:${pad(localMinutes)} o'clock`;
+    // Zeitformatierung mit Farben je nach Tageszeit
+    const getTimeFormat = (minutes) => {
+      const timeString = `${pad(localHours)}:${pad(localMinutes)} o'clock`;
 
-    if (minutes < 270) return "§9" + timeString;      // 00:00–04:30
-    if (minutes < 360) return "§e" + timeString;      // 04:30–06:00
-    if (minutes < 1020) return "§b" + timeString;     // 06:00–17:00
-    if (minutes < 1140) return "§e" + timeString;     // 17:00–19:00
-    return "§9" + timeString;                         // 19:00–00:00
-  };
+      if (minutes < 270) return "§9" + timeString;      // 00:00–04:30
+      if (minutes < 360) return "§e" + timeString;      // 04:30–06:00
+      if (minutes < 1020) return "§b" + timeString;     // 06:00–17:00
+      if (minutes < 1140) return "§e" + timeString;     // 17:00–19:00
+      return "§9" + timeString;                         // 19:00–00:00
+    };
 
-  // Name oder Kurzform je nach Länge
-  const label = (zone.name.length > 28 ? zone.short : zone.name) + "\n" + getTimeFormat(totalMinutes);
-
-
-
-
+    // Name oder Kurzform je nach Länge
+    const label = (switch_to_auto? "Automatically ("+zone.short+")" : (zone.name.length > 28 ? zone.short : zone.name)) + "\n" + getTimeFormat(totalMinutes);
     const getTimeIcon = (minutes) => {
       if (minutes < 270) return "textures/ui/time_6midnight";        // 00:00–04:30
       if (minutes < 360) return "textures/ui/time_1sunrise";         // 04:30–06:00
@@ -1670,7 +1825,9 @@ function settings_time_zone(player, viewing_mode) {
     form.button(label, icon);
 
     actions.push(() => {
-      if (icon === "textures/ui/realms_slot_check") {
+      if (switch_to_auto) {
+        settings_time_zone_preview(player, zone, true, viewing_mode);
+      } else if (icon === "textures/ui/realms_slot_check") {
         save_data.forEach(entry => {
           if (entry.time_source === 1) {
             entry.time_source = 0;
@@ -1680,7 +1837,7 @@ function settings_time_zone(player, viewing_mode) {
         update_save_data(save_data);
         settings_time_zone(player);
       } else {
-        settings_time_zone_preview(player, zone, viewing_mode);
+        settings_time_zone_preview(player, zone, false, viewing_mode);
       }
     });
   };
@@ -1691,6 +1848,10 @@ function settings_time_zone(player, viewing_mode) {
   const navButton = (label, icon, mode) => {
     form.button(label, icon);
     actions.push(() => settings_time_zone(player, mode));
+  };
+
+  const autoButton = () => {
+    renderZoneButton(timezone_list.find(zone => zone.utc === server_utc), undefined, true)
   };
 
   const renderZones = (filterFn) => {
@@ -1709,6 +1870,7 @@ function settings_time_zone(player, viewing_mode) {
     form.divider();
     if (end < timezone_list.length - 1) navButton("Show later time zones", "textures/ui/down_arrow", 2);
   } else {
+    if (server_utc) {autoButton(); form.divider();}
     if (viewing_mode === 1) navButton("Show less", "textures/ui/down_arrow", 0);
     if (viewing_mode === 2 && current_zone_index !== 0) {navButton("Show previous time zones", "textures/ui/up_arrow", 3); form.divider();}
     if (viewing_mode === 3 && current_utc !== undefined) {navButton("Show less", "textures/ui/down_arrow", 2);}
@@ -1722,6 +1884,7 @@ function settings_time_zone(player, viewing_mode) {
     if (viewing_mode === 1 && current_zone_index !== timezone_list.length) {form.divider(); navButton("Show later time zones", "textures/ui/down_arrow", 3);}
     if (viewing_mode === 2) {navButton("Show less", "textures/ui/up_arrow", 0)}
     if (viewing_mode === 3 && current_utc !== undefined) {navButton("Show less", "textures/ui/up_arrow", 1)}
+    if (viewing_mode === 3 && current_utc == undefined) form.divider();
   }
 
   form.button("");
@@ -1738,8 +1901,7 @@ function settings_time_zone(player, viewing_mode) {
   });
 }
 
-
-function settings_time_zone_preview (player, zone, viewing_mode) {
+function settings_time_zone_preview (player, zone, switch_to_auto, viewing_mode) {
   const save_data = load_save_data();
   let form = new MessageFormData();
   const now = new Date();
@@ -1772,15 +1934,16 @@ function settings_time_zone_preview (player, zone, viewing_mode) {
 
 
   form.title("Time zone");
+  let subtitle = save_data[0].utc_auto? "Do you want to manually overwrite this time zone?" : "Do you want to use this time zone?"
   form.body(
     "Time zone: " + zone.name +
     "\nUTC: "+ (zone.utc >= 0 ? "+" : "") + zone.utc +
     "\nTime: " + getTimeFormat(totalMinutes) +
     "§r\nLocation: " + zone.location.join(", ") +
-    "\n\nDo you want to use this time zone?\n "
+    "\n\n"+ subtitle +"\n "
   )
 
-  form.button1("Switch to " +zone.short);
+  form.button1(save_data[0].utc_auto? "Choose manually" : "Switch to " +zone.short);
   form.button2("");
 
   form.show(player).then((response) => {
@@ -1788,11 +1951,28 @@ function settings_time_zone_preview (player, zone, viewing_mode) {
       return -1
     }
     if (response.selection == 0) {
-      save_data[0].utc = zone.utc;
-      update_save_data(save_data);
-      return settings_main(player);
+      // Disable UTC auto
+      if (save_data[0].utc_auto) {
+        save_data[0].utc_auto = false
+        save_data[0].utc = undefined
+        update_save_data(save_data);
+        return settings_time_zone(player, 0);
+
+      // Enable UTC auto
+      } else if (switch_to_auto) {
+        save_data[0].utc_auto = true
+        save_data[0].utc = server_utc
+        update_save_data(save_data);
+        return settings_main(player);
+
+      } else {
+        // Save manuall UTC
+        save_data[0].utc = zone.utc;
+        update_save_data(save_data);
+        return settings_main(player);
+      }
     }
-    settings_time_zone(player, viewing_mode);
+    return save_data[0].utc_auto? settings_main(player) : settings_time_zone(player, viewing_mode)
   });
 
 }
@@ -2106,12 +2286,6 @@ function debug_main(player) {
     debug_sd_editor(player, () => debug_main(player), [])
   });
 
-
-  form.button("§aAdd player (save data)");
-  actions.push(() => {
-    return debug_add_fake_player(player);
-  });
-
   form.button("§cRemove \"save_data\"");
   actions.push(() => {
     world.setDynamicProperty("com2hard:save_data", undefined);
@@ -2119,7 +2293,7 @@ function debug_main(player) {
   });
 
   if (!save_data[player_sd_index].url.find(url => url == "https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml")) {
-    form.button("Add ts");
+    form.button("Add RSS-Feed");
     actions.push(async() => {
       settings_links_detail(player, "https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml")
     });
@@ -2135,6 +2309,9 @@ function debug_main(player) {
     update_retrieved_rss_data()
     return debug_main(player)
   });
+
+  let build_date = convertUnixToDate(retrieved_rss_data[0].timestamp, save_data[0].utc || 0)
+  form.label("§7" +(save_data[0].utc == undefined ? "Last update: "+getRelativeTime(Math.floor(Date.now() / 1000) - retrieved_rss_data[0].timestamp, player) +" ago" : `As off ${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds}`) + " (Intervall: "+save_data[0].fetch_message_time+" Minute/s")
 
 
   form.button("§cClose Server");
@@ -2159,7 +2336,9 @@ function debug_main(player) {
 }
 
 function debug_sd_editor(player, onBack, path = []) {
+  let actions = [];
   const save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
 
   let current = save_data;
   for (const key of path) {
@@ -2168,9 +2347,10 @@ function debug_sd_editor(player, onBack, path = []) {
 
   const returnToCurrentMenu = () => debug_sd_editor(player, onBack, path);
 
-  if (Array.isArray(current)) {
+  // === A) Array-Branch ===
+  if (path.length === 0 && Array.isArray(current)) {
     const form = new ActionFormData()
-      .title("Debug Editor v.1.1")
+      .title("SD notepad v.2.0")
       .body(`Path: §7save_data/`);
 
     current.forEach((entry, idx) => {
@@ -2178,36 +2358,54 @@ function debug_sd_editor(player, onBack, path = []) {
         ? `Server [${idx}]`
         : `${entry.name ?? `Player ${idx}`} [${entry.id ?? idx}]`;
       form.button(label, "textures/ui/storageIconColor");
+
+      // Push action for this entry
+      actions.push(() => {
+        debug_sd_editor(
+          player,
+          returnToCurrentMenu,
+          [...path, idx]
+        );
+      });
     });
 
-    form.button(""); // Back
+    form.button("§aAdd player", "textures/ui/color_plus");
+    actions.push(() => {
+      return debug_add_fake_player(player);
+    });
+
+    form.divider()
+    form.button(""); // Back (no action needed here)
 
     form.show(player).then(res => {
-      if (res.canceled) return;
-      if (res.selection === current.length) {
+      if (res.selection == undefined) {
+        return -1
+      }
+      if (res.selection === current.length + 1) { // Back button index
         return onBack();
       }
-      debug_sd_editor(
-        player,
-        returnToCurrentMenu,
-        [...path, res.selection]
-      );
+
+      // Execute selected action
+      actions[res.selection]?.();
     });
+
 
   // === B) Object-Branch ===
   } else if (current && typeof current === "object") {
     const keys = Object.keys(current);
+
     const displaySegments = path.map((seg, idx) => {
       if (idx === 0) {
         return seg === 0 ? "server" : save_data[Number(seg)]?.id ?? seg;
       }
       return seg;
     });
-  const displayPath = `save_data/${displaySegments.join("/")}`;
+    const displayPath = `save_data/${displaySegments.join("/")}`;
     const form = new ActionFormData()
-      .title("Debug Editor v.1.1")
+      .title("SD notepad v.2.0")
       .body(`Path: §7${displayPath}`);
 
+    // Dateneinträge als Buttons
     keys.forEach(key => {
       const val = current[key];
       if (typeof val === "boolean") {
@@ -2220,55 +2418,67 @@ function debug_sd_editor(player, onBack, path = []) {
       } else if (typeof val === "string") {
         form.button(`${key}: ${val}§r\n§9type: string`, "textures/ui/editIcon");
       } else {
-        form.button(`${key}`, "textures/ui/storageIconColor"); // verschachteltes Objekt/Array
+        form.button(`${key}`, "textures/ui/storageIconColor");
       }
-    });
 
-    form.button(""); // Back
+      // Aktionen pushen
+      actions.push(() => {
+        const nextPath = [...path, key];
+        const fresh = load_save_data();
+        let target = fresh;
+        for (const k of nextPath.slice(0, -1)) {
+          target = target[k];
+        }
+        const val = target[key];
+
+        if (typeof val === "boolean") {
+          target[key] = !val;
+          update_save_data(fresh);
+          returnToCurrentMenu();
+        } else if (typeof val === "number" || typeof val === "string") {
+          openTextEditor(
+            player,
+            String(val),
+            nextPath,
+            newText => {
+              target[key] = newText;
+              update_save_data(fresh);
+              returnToCurrentMenu();
+            },
+            () => {
+              return -1
+            }
+          );
+        } else {
+          debug_sd_editor(player, returnToCurrentMenu, nextPath);
+        }
+      });
+    });
+    // Optional: Remove player
+    if (path.length === 1 && path[0] !== 0) {
+      form.button("§cRemove player", "textures/blocks/barrier");
+      actions.push(() => {
+        return handle_data_action(false, true, player, save_data[Number(path[0])], save_data[player_sd_index].lang);
+      });
+    }
+
+    // Zurück-Button
+    form.divider()
+    form.button("");
+    actions.push(() => onBack());
 
     form.show(player).then(res => {
-      if (res.selection == undefined ) {
+      if (res.selection == undefined) {
         return -1
       }
-      // 1. Back-Button?
-      if (res.selection === keys.length) {
-        return onBack();
-      }
 
-      const key = keys[res.selection];
-      const nextPath = [...path, key];
-      const fresh = load_save_data();
-      let target = fresh;
-      for (const k of nextPath.slice(0, -1)) {
-        target = target[k];
-      }
-      const val = target[key];
-      if (typeof val === "boolean") {
-        // Boolean-Toggle
-        target[key] = !val;
-        update_save_data(fresh);
-        returnToCurrentMenu();
-
-      } else if (typeof val === "number" || typeof val === "string") {
-        // Number-Editor
-        openTextEditor(
-          player,
-          String(val),
-          nextPath,
-          newText => {
-            target[key] = newText;
-            update_save_data(fresh);
-            returnToCurrentMenu();
-          },
-          () => {
-            return -1
-          }
-        );
-
-      } else {
-        debug_sd_editor(player, returnToCurrentMenu, nextPath);
+      // Aktion ausführen
+      const action = actions[res.selection];
+      if (action) {
+        action();
       }
     });
+
   }
 }
 
@@ -2304,18 +2514,48 @@ function openTextEditor(player, current, path, onSave, onCancel) {
 
 function debug_add_fake_player(player) {
   let form = new ModalFormData();
+  let UniqueId = ""+generateEntityUniqueId()
 
   form.textField("Player name", player.name);
-  form.textField("Player id", player.id);
+  form.textField("Player id", UniqueId);
   form.submitButton("Add player")
 
   form.show(player).then((response) => {
-    if (response.selection == undefined ) {
+    if (response.canceled) {
       return -1
     }
-    create_player_save_data(response.formValues[1], response.formValues[0])
-    return debug_main(player)
+
+    let name = response.formValues[0]
+    let id = response.formValues[1]
+
+    if (id == "") {
+      id = UniqueId
+    }
+
+    if (name == "") {
+      name = player.name
+    }
+
+    create_player_save_data(id, name, {last_unix: undefined})
+    return debug_sd_editor(player, () => debug_main(player), [])
   });
+}
+
+function generateEntityUniqueId() {
+  // Erzeuge eine zufällige 64-Bit Zahl als BigInt
+  // Wir erzeugen 2 * 32-Bit Teile und setzen sie zusammen
+  const high = BigInt(Math.floor(Math.random() * 0x100000000)); // obere 32 Bit
+  const low = BigInt(Math.floor(Math.random() * 0x100000000));  // untere 32 Bit
+
+  let id = (high << 32n) | low;
+
+  // Umwandlung in signed 64-Bit Bereich (zweier Komplement)
+  // Wenn das höchste Bit (63.) gesetzt ist, wird die Zahl negativ
+  if (id & (1n << 63n)) {
+    id = id - (1n << 64n);
+  }
+
+  return id;
 }
 
 
@@ -2323,37 +2563,47 @@ function debug_add_fake_player(player) {
  Dictionary
 -------------------------*/
 
-async function dictionary_about_version(player) {
+function dictionary_about(player, show_ip) {
   let form = new ActionFormData()
   let actions = []
   let save_data = load_save_data()
   let build_date = convertUnixToDate(version_info.unix, save_data[0].utc || 0);
   form.title("About")
-  form.body(
-    "Name: " + version_info.name + "\n" +
-    "Version: " + version_info.version + (
-      compareVersions(
-        JSON.parse(await req_url_content("https://api.github.com/repos/thefelixlive/RSS-Feed/releases/latest")).name,
-        version_info.version
-      ) == 1
-        ? " §a(update time)§r"
-        : " (" + version_info.build + ")"
-    ) + "\n" +
-    "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
-    "UUID: "+ version_info.uuid + "\n" +
-    "Build date: " + (
-      save_data[0].utc == undefined
-        ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) + " ago\n\n§7Note: Set the time zone to see detailed information"
-        : `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`
-    ) +
-    "\n\n§7© "+ (build_date.year > 2025 ? "2025 - " + build_date.year : build_date.year ) + " TheFelixLive. Licensed under the MIT License."
+
+  form.body("§lGeneral")
+  form.label(
+    "Name: " + version_info.name+ "\n"+
+    "UUID: "+ version_info.uuid+
+    (show_ip? "\n"+ "Public IP: "+server_ip : "")
   )
 
+  form.label("§lVersion")
+  form.label(
+    "Version: " + version_info.version + "\n" +
+    "Build: " + version_info.build + "\n" +
+    "Release type: " + ["dev", "preview", "stable"][version_info.release_type] + "\n" +
+    "Build date: " + (
+      save_data[0].utc === undefined
+        ? getRelativeTime(Math.floor(Date.now() / 1000) - version_info.unix, player) + " ago\n\n§7Note: Set the time zone to see detailed information"
+        : `${build_date.day}.${build_date.month}.${build_date.year} ${build_date.hours}:${build_date.minutes}:${build_date.seconds} (UTC${build_date.utcOffset >= 0 ? '+' : ''}${build_date.utcOffset})`
+    ) + "\n" +
+    "Status: " + (github_data? (compareVersions((version_info.release_type === 2 ? github_data.find(r => !r.prerelease)?.tag : github_data[0]?.tag), version_info.version) !== 1? "§aLatest version" : "§6Update available!"): "§cFailed to fetch!")
+  );
+
+  form.label("§7© "+ (build_date.year > 2025 ? "2025 - " + build_date.year : build_date.year ) + " TheFelixLive. Licensed under the MIT License.")
+
+  if (!show_ip && server_ip) {
+    form.button("Show Public IP");
+    actions.push(() => {
+      dictionary_about(player, true)
+    });
+    form.divider()
+  }
 
   if (version_info.changelog.new_features.length > 0 || version_info.changelog.general_changes.length > 0 || version_info.changelog.bug_fixes.length > 0) {
-    form.button("§9Changelog");
+    form.button("§9Changelog"+(github_data?"s":""));
     actions.push(() => {
-      dictionary_about_version_changelog(player, build_date)
+      github_data? dictionary_about_changelog(player) : dictionary_about_changelog_legacy(player, build_date)
     });
   }
 
@@ -2375,6 +2625,185 @@ async function dictionary_about_version(player) {
     if (response.selection !== undefined && actions[response.selection]) {
       actions[response.selection]();
     }
+  });
+}
+
+function dictionary_about_changelog(player) {
+  const form = new ActionFormData();
+  let save_data = load_save_data()
+  const actions = [];
+
+  // ---- 1) Hilfsdaten ----------------------------------------------------
+  const installed   = version_info.version;        // z.B. "v1.5.0"
+  const buildName   = version_info.build;          // z.B. "B123"
+  const installDate = version_info.unix;           // z.B. "1700000000"
+
+  // ---- 3) Neue Instanzen finden -----------------------------------------
+  const latest_stable = github_data.find(r => !r.prerelease);
+  let   latest_beta   = github_data.find(r => r.prerelease);
+
+  // ---- 4) Beta-Versions-Filter (nach release_type) --------------------
+  if (version_info.release_type === 2) { // „nur Beta zulassen“
+    if (latest_beta && latest_stable) {
+      const isBetaNewer = compareVersions(latest_beta.name, latest_stable.name) > 0;
+      if (isBetaNewer) {
+        // Nur die neueste Beta behalten
+        github_data = github_data.filter(r => r === latest_beta || !r.prerelease);
+      } else {
+        // Stable neuer oder gleich → Betas entfernen
+        github_data = github_data.filter(r => !r.prerelease);
+        latest_beta = undefined;
+      }
+    } else {
+      // Sicherheit: Alle Betas entfernen
+      github_data = github_data.filter(r => !r.prerelease);
+      latest_beta = undefined;
+    }
+  } else {
+    // Wenn Stable neuer als Beta ist → Beta Label unterdrücken
+    if (latest_beta && latest_stable) {
+      const isStableNewer = compareVersions(latest_stable.name, latest_beta.name) > 0;
+      if (isStableNewer) {
+        latest_beta = undefined; // Kein Beta-Label später anzeigen
+      }
+    }
+  }
+
+
+  // ---- 5) Alle Einträge, inkl. eventuell fehlenden Installations‑Eintrag --
+  const allData = [...github_data];
+
+  // Prüfen, ob die installierte Version überhaupt in der Liste vorkommt
+  const isInstalledListed = github_data.some(r => r.name === installed);
+  if (!isInstalledListed) {
+    // Dummy‑Objekt – so sieht es aus wie ein reguläres GitHub‑Release
+    allData.push({
+      name:        installed,
+      published_at: installDate,
+      prerelease:  false,          // wichtig, damit das Label nicht „(latest beta)“ bekommt
+    });
+  }
+
+  // Sortieren (nach Version)
+  allData.sort((a, b) => compareVersions(b.name, a.name));
+
+  // ---- 6) UI bauen ----------------------------------------------------
+  form.title("About");
+  form.body("Select a version");
+
+  allData.forEach(r => {
+    // Prüfen, ob r.published_at schon Unix-Sekunden ist
+    const publishedUnix = (typeof r.published_at === 'number' && r.published_at < 1e12)
+      ? r.published_at // schon in Sekunden
+      : Math.floor(new Date(r.published_at).getTime() / 1000); // in Sekunden umrechnen
+
+    let label;
+    let build_date = convertUnixToDate(publishedUnix, save_data[0].utc || 0);
+
+    let build_text = (
+      save_data[0].utc === undefined
+        ? getRelativeTime(Math.floor(Date.now() / 1000) - publishedUnix, player) + " ago"
+        : `${build_date.day}.${build_date.month}.${build_date.year}`
+    );
+
+    if (r === latest_beta && r.name === installed) {
+      label = `${r.name} (${buildName})\n${build_text} §9(latest beta)`;
+    } else {
+      label = `${r.name}\n${build_text}`;
+
+      if (r === latest_stable) {
+        label += ' §a(latest version)';
+      } else if (r === latest_beta) {
+        label += ' §9(latest beta)';
+      } else if (r.name === installed) {
+        label += ' §6(installed version)';
+      }
+    }
+
+    form.button(label);
+
+    actions.push(() => {
+      dictionary_about_changelog_view(player, r);
+    });
+  });
+
+
+  // ---- 7) Footer‑Button -------------------------------------------------
+  form.divider();
+  form.button("");
+  actions.push(() => {
+    dictionary_about(player);
+  });
+
+  // ---- 8) Anzeigen -----------------------------------------------------
+  form.show(player).then(response => {
+    if (response.selection === undefined) return;
+    if (actions[response.selection]) actions[response.selection]();
+  });
+}
+
+function dictionary_about_changelog_view(player, version) {
+  let save_data = load_save_data()
+  const publishedUnix = (typeof version.published_at === 'number' && version.published_at < 1e12)
+  ? version.published_at // schon in Sekunden
+  : Math.floor(new Date(version.published_at).getTime() / 1000);
+
+  let build_date = convertUnixToDate(publishedUnix, save_data[0].utc || 0);
+
+  if (version.name == version_info.version) return dictionary_about_changelog_legacy(player, build_date)
+  const form = new ActionFormData().title("Changelog - " + version.name);
+  form.body(version.body)
+
+
+
+  const dateStr = `${build_date.day}.${build_date.month}.${build_date.year}`;
+  const relative = getRelativeTime(Math.floor(Date.now() / 1000) - publishedUnix);
+  form.label(`§7As of ${dateStr} (${relative} ago)`);
+  form.button("");
+
+  form.show(player).then(res => {
+    if (res.selection === 0) dictionary_about_changelog(player);
+  });
+}
+
+function dictionary_about_changelog_legacy(player, build_date) {
+  const { new_features, general_changes, bug_fixes } = version_info.changelog;
+  const { unix } = version_info
+  const sections = [
+    { title: "§l§bNew Features§r", items: new_features },
+    { title: "§l§aGeneral Changes§r", items: general_changes },
+    { title: "§l§cBug Fixes§r", items: bug_fixes }
+  ];
+
+  const form = new ActionFormData().title("Changelog - " + version_info.version);
+
+  let bodySet = false;
+  for (let i = 0; i < sections.length; i++) {
+    const { title, items } = sections[i];
+    if (items.length === 0) continue;
+
+    const content = title + "\n\n" + items.map(i => `- ${i}`).join("\n\n");
+
+    if (!bodySet) {
+      form.body(content);
+      bodySet = true;
+    } else {
+      form.label(content);
+    }
+
+    // Add divider if there's at least one more section with items
+    if (sections.slice(i + 1).some(s => s.items.length > 0)) {
+      form.divider();
+    }
+  }
+
+  const dateStr = `${build_date.day}.${build_date.month}.${build_date.year}`;
+  const relative = getRelativeTime(Math.floor(Date.now() / 1000) - unix);
+  form.label(`§7As of ${dateStr} (${relative} ago)`);
+  form.button("");
+
+  form.show(player).then(res => {
+    if (res.selection === 0) github_data? dictionary_about_changelog(player) : dictionary_about(player);
   });
 }
 
@@ -2411,14 +2840,14 @@ function dictionary_contact(player) {
     if (version_info.release_type !== 2) {
       form.button("Dump SD\nvia. server console");
       actions.push(() => {
-        console.log(JSON.stringify(save_data))
+        print(JSON.stringify(save_data))
       });
     }
   }
   form.divider()
   form.button("");
   actions.push(() => {
-    dictionary_about_version(player)
+    dictionary_about(player)
   });
 
   form.show(player).then((response) => {
@@ -2430,47 +2859,6 @@ function dictionary_contact(player) {
     }
   });
 }
-
-function dictionary_about_version_changelog(player, build_date) {
-  const { new_features, general_changes, bug_fixes, unix } = version_info.changelog;
-  const sections = [
-    { title: "§l§bNew Features§r", items: new_features },
-    { title: "§l§aGeneral Changes§r", items: general_changes },
-    { title: "§l§cBug Fixes§r", items: bug_fixes }
-  ];
-
-  const form = new ActionFormData().title("Changelog - " + version_info.version);
-
-  let bodySet = false;
-  for (let i = 0; i < sections.length; i++) {
-    const { title, items } = sections[i];
-    if (items.length === 0) continue;
-
-    const content = title + "\n\n" + items.map(i => `- ${i}`).join("\n\n");
-
-    if (!bodySet) {
-      form.body(content);
-      bodySet = true;
-    } else {
-      form.label(content);
-    }
-
-    // Add divider if there's at least one more section with items
-    if (sections.slice(i + 1).some(s => s.items.length > 0)) {
-      form.divider();
-    }
-  }
-
-  const dateStr = `${build_date.day}.${build_date.month}.${build_date.year}`;
-  const relative = getRelativeTime(Math.floor(Date.now() / 1000) - unix);
-  form.label(`§7As of ${dateStr} (${relative} ago)`);
-  form.button("");
-
-  form.show(player).then(res => {
-    if (res.selection === 0) dictionary_about_version(player);
-  });
-}
-
 
 /*------------------------
  Update loop

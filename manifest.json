@@ -4,7 +4,7 @@
       "description": "The Minecraft Bedrock RSS Reader is a script that lets players access real-time news, updates, or blog feeds directly within the game. Using this tool, you can stay informed with the latest headlines from your favorite websites or Minecraft news sources, without leaving your world.",
       "name": "RSS Feed",
       "uuid": "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
-      "version": [ 1, 0, 0],
+      "version": [ 1, 1, 0],
       "min_engine_version": [1, 21, 90]
   },
   "modules": [

@@ -14,7 +14,7 @@ The Minecraft Bedrock RSS Reader is a script that lets players access real-time 
 # Installation
 
 > [!WARNING]
-> This add-on only works on a [dedicated server](https://www.minecraft.net/download/server/bedrock). Other clients (consoles, phones, etc.) can join to the server after the installation.
+> This add-on only works on a server. If you use a server provider (e.g. Aternos) you may have to do some different steps since this guide covers [Minecraft's dedicated server](https://www.minecraft.net/download/server/bedrock). Other clients (consoles, phones, etc.) can join to the server after this installation.
 
 <details open>
    <summary>Windows (Client + Server) - Recommended</summary>
