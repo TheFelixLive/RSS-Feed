@@ -6,9 +6,9 @@ import { HttpRequest, http } from '@minecraft/server-net';
 const version_info = {
   name: "RSS-Feed",
   version: "v.1.1.0",
-  build: "B005",
+  build: "B006",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1754645146,
+  unix: 1754661410,
   uuid: "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
   changelog: {
     // new_features
@@ -331,24 +331,29 @@ let system_privileges = 2
  Client (an addon only needs to have the client function to be recognizable)
 -------------------------*/
 
-system.afterEvents.scriptEventReceive.subscribe(event=> {
-   let player = event.sourceEntity, data
-
+system.afterEvents.scriptEventReceive.subscribe(async event=> {
    if (event.id === "multiple_menu:data") {
+    let player = event.sourceEntity, data, scoreboard = world.scoreboard.getObjective("mm_data")
 
     // Reads data from the scoreboard
-    try {
-      data = JSON.parse(world.scoreboard.getObjective("mm_data").getParticipants()[0].displayName)
-    } catch (e) {
-      print("Wrong formated data!")
-      world.scoreboard.removeObjective("mm_data")
-      return -1
+    if (scoreboard) {
+      try {
+        data = JSON.parse(scoreboard.getParticipants()[0].displayName)
+      } catch (e) {
+        print("Wrong formated data: "+scoreboard.getParticipants()[0]) // Scoreboard IS available but contains garbisch
+        world.scoreboard.removeObjective("mm_data")
+        return -1
+      }
+    } else {
+      print("No Scoreboard!")
+      return -1 // Scoreboard is not available: happens when an addon has already processed the request e.g. "open main menu"
     }
-    world.scoreboard.getObjective("mm_data").removeParticipant(JSON.stringify(data))
 
 
     // Initializing
     if (data.event == "mm_initializing") {
+      scoreboard.removeParticipant(JSON.stringify(data))
+
       data.data.push({
         uuid: version_info.uuid,
         name: version_info.name
@@ -357,19 +362,31 @@ system.afterEvents.scriptEventReceive.subscribe(event=> {
       if (system_privileges == 2) system_privileges = 0;
 
       // Saves data in to the scoreboard
-      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify(data), 1)
+      scoreboard.setScore(JSON.stringify(data), 1)
     }
 
 
+    // Processes Internet API requests
+
+    if (data.event == "internet_api" && data.data.source) {
+      await system.waitTicks(1)
+      scoreboard.removeParticipant(JSON.stringify(data))
+
+      // Imput-Format: data.data = {source: "uuid", url: ""}
+
+      scoreboard.setScore(JSON.stringify({event:"internet_api", data: {target: data.data.source, answer: await req_url_content(data.data.url)}}), 1); // answer
+      world.getDimension("overworld").runCommand("scriptevent multiple_menu:data");
+    }
+
     // Will open the main menu of your addon
-    if (data.event == "mm_open" && data.data.traget == version_info.uuid) {
+    if (data.event == "mm_open" && data.data.target == version_info.uuid) {
         main_menu(player);
         world.scoreboard.removeObjective("mm_data")
     }
 
 
     // Host Only (which is why system_privileges == 1): Opens the multiple menu, is called by other addons as a back button
-    if (data.event == "mm_open" && data.data.traget == "main" && system_privileges == 1) {
+    if (data.event == "mm_open" && data.data.target == "main" && system_privileges == 1) {
         multiple_menu(player);
         world.scoreboard.removeObjective("mm_data")
     }
@@ -412,7 +429,7 @@ async function initialize_multiple_menu() {
 
   addon_list = data.data
 
-  if (data.data.length == 0) {
+  if (data.data.length == 1) {
     print("Multiple Menu: no other plugin found");
     system_privileges = 2;
   }
@@ -439,7 +456,7 @@ function multiple_menu(player) {
 
     actions.push(() => {
       world.scoreboard.addObjective("mm_data");
-      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_open", data:{traget: addon.uuid}}), 1);
+      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_open", data:{target: addon.uuid}}), 1);
       player.runCommand("scriptevent multiple_menu:data");
     });
   });
@@ -1238,7 +1255,7 @@ function main_menu(player) {
     form.button("");
     actions.push(() => {
       world.scoreboard.addObjective("mm_data");
-      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_open", data:{traget: "main"}}), 1);
+      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_open", data:{target: "main"}}), 1);
       player.runCommand("scriptevent multiple_menu:data");
     });
   }
@@ -1743,7 +1760,7 @@ function settings_gestures(player) {
       settings_main(player);
     } else {
       world.scoreboard.addObjective("mm_data");
-      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_open", data:{traget: "main"}}), 1);
+      world.scoreboard.getObjective("mm_data").setScore(JSON.stringify({event: "mm_open", data:{target: "main"}}), 1);
       player.runCommand("scriptevent multiple_menu:data");
     }
   });
@@ -2752,8 +2769,9 @@ function dictionary_about_changelog_view(player, version) {
 
   if (version.name == version_info.version) return dictionary_about_changelog_legacy(player, build_date)
   const form = new ActionFormData().title("Changelog - " + version.name);
-  form.body(version.body)
 
+  // TODO: Markdown support
+  form.body(version.body)
 
 
   const dateStr = `${build_date.day}.${build_date.month}.${build_date.year}`;

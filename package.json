@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@types/mojang-gametest": "^0.1.10",
-    "@types/mojang-minecraft": "^0.1.11"
+    "@minecraft/server": "^2.1.0",
+    "@minecraft/server-ui": "^2.0.0"
   }
 }
