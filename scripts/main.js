@@ -8,7 +8,7 @@ const version_info = {
   version: "v.1.1.0",
   build: "B005",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1754644779,
+  unix: 1754645146,
   uuid: "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
   changelog: {
     // new_features
