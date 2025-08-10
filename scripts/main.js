@@ -5,10 +5,10 @@ import { HttpRequest, http } from '@minecraft/server-net';
 
 const version_info = {
   name: "RSS-Feed",
-  version: "v.1.1.0",
-  build: "B006",
+  version: "v.2.0.0",
+  build: "B007",
   release_type: 0, // 0 = Development version (with debug); 1 = Beta version; 2 = Stable version
-  unix: 1754661410,
+  unix: 1754830003,
   uuid: "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
   changelog: {
     // new_features
@@ -23,8 +23,13 @@ const version_info = {
     ],
     // bug_fixes
     bug_fixes: [
-      "A bug has been fixed that crashes the menu if the URL of an RSS feed got invalid.",
-      "Fixed a visual bug that caused empty categories to be displayed"
+      "Permission should now work as intended",
+      "Fixed a bug that crashes the menu if the URL of an RSS feed got invalid.",
+      "Fixed a visual bug that caused empty categories to be displayed",
+      "Fixed a bug that caused the changelog to always display \"a few seconds ago\"",
+      "Fixed a bug that prevented the menu from being opened via a stick",
+      "Fixed duplicate RSS feed entries when the same URL was requested by multiple players",
+      "Fixed a bug that showed RSS entries from feeds not saved by the player"
     ]
   }
 }
@@ -315,7 +320,7 @@ print("Hello from " + version_info.name + " - "+version_info.version+" ("+versio
 
 
 /*------------------------
-  Handshake with timer
+  Multiple menu v2
 -------------------------*/
 
 // Status
@@ -345,7 +350,7 @@ system.afterEvents.scriptEventReceive.subscribe(async event=> {
         return -1
       }
     } else {
-      print("No Scoreboard!")
+      // print("No Scoreboard!")
       return -1 // Scoreboard is not available: happens when an addon has already processed the request e.g. "open main menu"
     }
 
@@ -673,9 +678,9 @@ world.beforeEvents.itemUse.subscribe(event => {
 
   if (event.itemStack.typeId === "minecraft:stick" && save_data[idx].gesture.stick) {
       system.run(() => {
-        if (save_data[idx].op && system_privileges !== 0) {
+        if (system_privileges !== 0) {
           event.source.playSound("random.pop2")
-          system_privileges == 1 ? multiple_menu(player) : main_menu(player);
+          system_privileges == 1 ? multiple_menu(event.source) : main_menu(event.source);
         }
       });
   }
@@ -704,7 +709,7 @@ async function gesture_jump() {
     if (isSneaking && isJumping && state.reset && (now - lastUsed >= 100)) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.sneak && save_data[idx].op && system_privileges !== 0) {
+      if (save_data[idx].gesture.sneak && system_privileges !== 0) {
         player.playSound("random.pop2")
         system_privileges == 1 ? multiple_menu(player) : main_menu(player);
       }
@@ -739,7 +744,7 @@ async function gesture_emote() {
     if (isEmoting && state.reset && (now - lastUsed >= 100)) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.emote && save_data[idx].op && system_privileges !== 0) {
+      if (save_data[idx].gesture.emote && system_privileges !== 0) {
         player.playSound("random.pop2")
         system_privileges == 1 ? multiple_menu(player) : main_menu(player);
       }
@@ -776,7 +781,7 @@ async function gesture_nod() {
     else if (state === "lookingUp" && pitch > 13) {
       const save_data = load_save_data();
       const idx = save_data.findIndex(e => e.id === player.id);
-      if (save_data[idx].gesture.nod && save_data[idx].op && system_privileges !== 0) {
+      if (save_data[idx].gesture.nod && system_privileges !== 0) {
         player.playSound("random.pop2")
         system_privileges == 1 ? multiple_menu(player) : main_menu(player);
       }
@@ -853,6 +858,151 @@ function convertUnixToDate(unixSeconds, utcOffset) {
     seconds: seconds,
     utcOffset: utcOffset
   };
+}
+
+function markdownToMinecraft(md) {
+  if (typeof md !== 'string') return '';
+
+  // normalize newlines
+  md = md.replace(/\r\n?/g, '\n');
+
+  const UNSUPPORTED_MSG = '§o§7Tabelles are not supported! Visit GitHub for this.';
+
+  // helper: map admonition type -> minecraft color code (choose sensible defaults)
+  function admonColor(type) {
+    const t = (type || '').toLowerCase();
+    if (['caution', 'warning', 'danger', 'important'].includes(t)) return '§c'; // red
+    if (['note', 'info', 'tip', 'hint'].includes(t)) return '§b'; // aqua
+    return '§e'; // fallback: yellow
+  }
+
+  // inline processor (handles code spans first, then bold/italic/strike, links/images, etc.)
+  function processInline(text) {
+    if (!text) return '';
+
+    // tokenise code spans to avoid further processing inside them
+    const tokens = [];
+    text = text.replace(/(`+)([\s\S]*?)\1/g, (m, ticks, code) => {
+      const safe = code.replace(/\n+/g, ' '); // inline code -> single line
+      const repl = '§7' + safe + '§r';
+      tokens.push(repl);
+      return `__MD_TOKEN_${tokens.length - 1}__`;
+    });
+
+    // images -> unsupported (replace whole image with message)
+    text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, () => UNSUPPORTED_MSG);
+
+    // links -> keep link text only (no URL)
+    text = text.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, '$1');
+
+    // bold: **text** or __text__ -> §ltext§r
+    text = text.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, '§l$2§r');
+
+    // italic: *text* or _text_ -> §otext§r
+    // (do after bold so that **...** won't be partially matched)
+    text = text.replace(/(\*|_)(?=\S)([\s\S]*?\S)\1/g, '§o$2§r');
+
+    // strikethrough: ~~text~~ -> use italic+gray as fallback (no §m)
+    text = text.replace(/~~([\s\S]*?)~~/g, '§o§7$1§r');
+
+    // simple HTML tags or raw tags -> treat as unsupported (avoid exposing markup)
+    if (/<\/?[a-z][\s\S]*?>/i.test(text)) return UNSUPPORTED_MSG;
+
+    // restore code tokens
+    text = text.replace(/__MD_TOKEN_(\d+)__/g, (m, idx) => tokens[Number(idx)] || '');
+
+    return text;
+  }
+
+  // 1) Replace fenced code blocks (```...```) with unsupported message
+  md = md.replace(/```[\s\S]*?```/g, () => UNSUPPORTED_MSG);
+
+  // 2) Replace GitHub-style admonition blocks: ::: type\n...\n:::
+  md = md.replace(/::: *([A-Za-z0-9_-]+)\s*\n([\s\S]*?)\n:::/gmi, (m, type, content) => {
+    // flatten content lines, then process inline inside
+    const inner = processInline(content.replace(/\n+/g, ' ').trim());
+    const cap = type.charAt(0).toUpperCase() + type.slice(1);
+    return `§l${admonColor(type)}${cap}: ${inner}§r`;
+  });
+
+  // now process line-by-line for tables / headings / lists / blockquotes / admonitions-as-blockquotes
+  const lines = md.split('\n');
+  const out = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    // trim trailing CR/ spaces
+    const raw = line;
+
+    //  ---- detect table: a row with '|' and a following separator row like "| --- | --- |" or "---|---"
+    const nextLine = lines[i + 1] || '';
+    const isTableRow = /\|/.test(line);
+    const nextIsSeparator = /^\s*\|?[:\-\s|]+$/.test(nextLine);
+    if (isTableRow && nextIsSeparator) {
+      // consume all contiguous table rows
+      out.push(UNSUPPORTED_MSG);
+      i++; // skip the separator
+      while (i + 1 < lines.length && /\|/.test(lines[i + 1])) i++;
+      continue;
+    }
+
+    //  ---- headings (#, ##, ###) -> §l + content + §r + \n
+    const hMatch = line.match(/^(#{1,3})\s*(.*)$/);
+    if (hMatch) {
+      const content = hMatch[2].trim();
+      out.push('§l' + processInline(content) + '§r\n');
+      continue;
+    }
+
+    //  ---- GitHub-style single-line admonition in > or plain "Caution: ..." at line start
+    const admonLineMatch = raw.match(/^\s*(?:>\s*)?(?:\*\*)?(Caution|Warning|Note|Tip|Important|Danger|Info)(?:\*\*)?:\s*(.+)$/i);
+    if (admonLineMatch) {
+      const type = admonLineMatch[1];
+      const content = admonLineMatch[2].trim();
+      out.push(`§l${admonColor(type)}${type}: ${processInline(content)}§r`);
+      continue;
+    }
+
+    //  ---- blockquote lines starting with '>'
+    if (/^\s*>/.test(line)) {
+      const content = line.replace(/^\s*>+\s?/, '');
+      out.push('§o' + processInline(content) + '§r');
+      continue;
+    }
+
+    //  ---- images or html inline -> unsupported
+    if (/^!\[.*\]\(.*\)/.test(line) || /<[^>]+>/.test(line)) {
+      out.push(UNSUPPORTED_MSG);
+      continue;
+    }
+
+    //  ---- unordered list (-, *, +) -> bullet + inline
+    if (/^\s*[-*+]\s+/.test(line)) {
+      const item = line.replace(/^\s*[-*+]\s+/, '');
+      out.push('• ' + processInline(item));
+      continue;
+    }
+
+    //  ---- ordered list (1. 2. ...) -> bullet as well
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const item = line.replace(/^\s*\d+\.\s+/, '');
+      out.push('• ' + processInline(item));
+      continue;
+    }
+
+    //  ---- default: process inline formatting
+    // empty line -> keep empty
+    if (line.trim() === '') {
+      out.push('');
+      continue;
+    }
+
+    out.push(processInline(line));
+  }
+
+  // join with newline and return
+  return out.join('\n');
 }
 
 async function req_url_content(url, player) {
@@ -1018,6 +1168,10 @@ function decodeHTMLEntities(text) {
   return txt;
 }
 
+function stripHTML(html) {
+  return html.replace(/<[^>]*>/g, '');
+}
+
 /*------------------------
  Update RSS-Feeds
 -------------------------*/
@@ -1031,18 +1185,13 @@ async function update_retrieved_rss_data() {
   let save_data = load_save_data();
   const allPlayers = world.getAllPlayers();
 
-  // Aktuellen Unix-Timestamp in Sekunden ermitteln
   const nowUnix = Math.floor(Date.now() / 1000);
 
-  // Falls das erste Element bereits ein Timestamp-Objekt ist, entfernen wir es
-  if (retrieved_rss_data[0] && typeof retrieved_rss_data[0].timestamp === 'number') {
-    retrieved_rss_data.shift();
-  }
-
-  // Neuen Timestamp mit success: true als erstes Element einfügen
   retrieved_rss_data.unshift({ timestamp: nowUnix, success: true });
 
-  // Jetzt die Feeds der Spieler einpflegen
+  // Set, um doppelte URLs zu verhindern
+  const processedUrls = new Set();
+
   for (const player of allPlayers) {
     let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
     if (player_sd_index === -1) continue;
@@ -1050,6 +1199,12 @@ async function update_retrieved_rss_data() {
     let filtered_urls = [];
 
     for (const rss_feed of save_data[player_sd_index].url) {
+      // Wenn URL schon verarbeitet, einfach übernehmen
+      if (processedUrls.has(rss_feed)) {
+        filtered_urls.push(rss_feed);
+        continue;
+      }
+
       const rss = await req_url_content(rss_feed);
 
       if (!rss) {
@@ -1062,12 +1217,14 @@ async function update_retrieved_rss_data() {
       if (content != -1) {
         retrieved_rss_data.push({ url: rss_feed, content: content });
         filtered_urls.push(rss_feed);
+        processedUrls.add(rss_feed); // Als verarbeitet markieren
       }
     }
     save_data[player_sd_index].url = filtered_urls;
-    update_save_data(save_data)
+    update_save_data(save_data);
   }
 }
+
 
 /*------------------------
  Update data (github)
@@ -1196,10 +1353,6 @@ function offsetToDecimal(offsetStr) {
     return decimal;
 }
 
-function stripHTML(html) {
-  return html.replace(/<[^>]*>/g, '');
-}
-
 /*------------------------
  Menus
 -------------------------*/
@@ -1210,27 +1363,30 @@ function main_menu(player) {
   let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
   const utcOffset = Math.round((save_data[0]?.utc || 0) * 60);
   let build_date = convertUnixToDate(retrieved_rss_data[0].timestamp, save_data[0].utc)
+  var max_entries = version_info.release_type === 0? 2 : 3
+  let actions = [];
 
   // Alle Einträge flatten
   const allEntries = retrieved_rss_data
     .slice(1)
     .flatMap(f =>
-      f.content.channel.item.map(a => ({
-        ...a,
-        source: f.content.channel.title
-      }))
+      (f && f.content && f.content.channel && f.content.channel.item)
+        ? f.content.channel.item.map(a => ({ ...a, source: f.content.channel.title, _feedUrl: f.url }))
+        : []
     )
     .filter(entry =>
-      save_data[player_sd_index].url.some(savedUrl => savedUrl !== entry.url)
+      ((save_data[player_sd_index] && save_data[player_sd_index].url) || []).includes(entry._feedUrl)
     );
+
 
   form.title("Main menu");
   form.body("Select an option!");
 
-  var max_entries = 3
-
-
-  let actions = [];
+  // This function is missing because I was not satisfied with the indexing, but the UI is finished, including examples!
+  if (version_info.release_type == 0) {
+    form.button("Search", "textures/ui/magnifyingGlass")
+    actions.push(() => search_menu(player));
+  }
 
   if (allEntries.length > 0 && retrieved_rss_data[0].success) {
     populateFormWithArticles(form, allEntries, utcOffset, entry => {
@@ -1274,18 +1430,16 @@ function all_articles(player) {
   const utcOffset = Math.round((save_data[0]?.utc || 0) * 60);
 
   const allEntries = retrieved_rss_data
-    // überspringe den ersten Feed
     .slice(1)
-    // flache alle Items der restlichen Feeds und füge die Quelle hinzu
     .flatMap(f =>
-      f.content.channel.item.map(a => ({
-        ...a,
-        source: f.content.channel.title
-      }))
+      (f && f.content && f.content.channel && f.content.channel.item)
+        ? f.content.channel.item.map(a => ({ ...a, source: f.content.channel.title, _feedUrl: f.url }))
+        : []
     )
     .filter(entry =>
-      save_data[player_sd_index].url.some(savedUrl => savedUrl !== entry.url)
+      ((save_data[player_sd_index] && save_data[player_sd_index].url) || []).includes(entry._feedUrl)
     );
+
 
 
 
@@ -1365,6 +1519,78 @@ function error_menu(player, id, description) {
 }
 
 /*------------------------
+ Search
+-------------------------*/
+
+function search_menu(player, default_imput) {
+  const form = new ModalFormData();
+  const save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
+  form.title("Search");
+  form.textField("What are you looking for?", "e.g. Timezone settings", {tooltip: "Leave it blank to return to the main menu!", defaultValue: default_imput})
+
+
+  form.show(player).then(response => {
+    if (response.canceled) return -1
+
+    let search_imput = response.formValues[0]
+    if (search_imput == "") return main_menu(player)
+
+    search_menu_result(player, undefined, search_imput)
+  });
+}
+
+function search_menu_result(player, search_results, search_term) {
+  const form = new ActionFormData();
+  const save_data = load_save_data();
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+  let actions = []
+
+  // Template
+
+  form.title("Search");
+  form.body("3 search results for \""+ search_term+"\"");
+
+  form.divider();
+
+  form.label("Mange RSS-Feeds - 1")
+
+  form.button("Add RSS Feed\n§o[...] "+search_term+" [...]", "textures/ui/world_glyph_color_2x_black_outline"); // "search_term" here shut be prof rather the actuel term
+  actions.push(() => {
+    settings_links_add(player)
+  });
+
+  form.divider();
+
+  form.label("Settings - 2")
+
+  form.button("Debug\n§o[...] "+search_term+" [...]", "textures/ui/ui_debug_glyph_color");
+  actions.push(() => {
+    debug_main(player);
+  });
+
+  form.button("About", "textures/ui/infobulb");
+  actions.push(() => {
+    dictionary_about(player, false)
+  });
+
+  // Template - End
+
+  form.divider();
+
+  form.button("");
+  actions.push(() => search_menu(player, search_term));
+
+
+  form.show(player).then(response => {
+    if (response.selection != null && actions[response.selection]) {
+      actions[response.selection]();
+    }
+  });
+}
+
+/*------------------------
  Settings
 -------------------------*/
 
@@ -1398,6 +1624,7 @@ function settings_main(player) {
   // Gestures
   if (system_privileges == 2) {
     form.button("Gestures", "textures/ui/sidebar_icons/emotes");
+    // Hier ein Paar kleine Infos fürs Indexing
     actions.push(() => {
       settings_gestures(player)
     });
@@ -1622,7 +1849,7 @@ function settings_intervall(player) {
   let save_data = load_save_data()
 
   form.title("Intervall")
-  form.body("Select a time after which the rss feeds should be updated");
+  form.body("Select a time after which the RSS feeds should be updated");
 
   if (save_data[0].fetch_message_time == 1) {
     form.button("Immediately", "textures/ui/realms_slot_check");
@@ -2162,7 +2389,7 @@ function settings_rights_data(viewing_player, selected_save_data) {
       actions.push(() => {
         form = new MessageFormData();
         form.title("Op advantages");
-        form.body("Your are trying to add op advantages to "+selected_save_data.name+". With them he would be able to:\n\n- Run all kinds off command\n- Mange save data\n\nAre you sure you want to add them?\n ");
+        form.body("Your are trying to add op advantages to "+selected_save_data.name+". With them he would be able to:\n\n- Mange Time zone\n- Change the Intervall\n- Mange save data\n\nAre you sure you want to add them?\n ");
         form.button2("");
         form.button1("§aMake op");
         form.show(viewing_player).then((response) => {
@@ -2243,26 +2470,26 @@ function handle_data_action(is_reset, is_delete, viewing_player, selected_save_d
       const confirm_form = new MessageFormData()
         .title("Online player information")
         .body(`Are you sure you want to remove ${selected_player.name}'s save data?\nThey must disconnect from the world!`)
-        .button1("")
-        .button2("§cKick & Delete");
+        .button2("")
+        .button1("§cKick & Delete");
 
       confirm_form.show(viewing_player).then(confirm => {
         if (confirm.selection == undefined ) {
           return -1
         }
-        if (confirm.selection === 1) {
+        if (confirm.selection === 0) {
           if (!world.getDimension("overworld").runCommand(`kick ${selected_player.name}`).successCount) {
             const host_form = new MessageFormData()
               .title("Host player information")
               .body(`${selected_player.name} is the host. To delete their data, the server must shut down. This usually takes 5 seconds`)
-              .button1("")
-              .button2("§cShutdown & Delete");
+              .button2("")
+              .button1("§cShutdown & Delete");
 
             host_form.show(viewing_player).then(host => {
               if (host.selection == undefined ) {
                 return -1
               }
-              if (host.selection === 1) {
+              if (host.selection === 0) {
                 delete_player_save_data(selected_save_data);
                 return close_world();
               } else {
@@ -2583,7 +2810,10 @@ function generateEntityUniqueId() {
 function dictionary_about(player, show_ip) {
   let form = new ActionFormData()
   let actions = []
+
   let save_data = load_save_data()
+  let player_sd_index = save_data.findIndex(entry => entry.id === player.id);
+
   let build_date = convertUnixToDate(version_info.unix, save_data[0].utc || 0);
   form.title("About")
 
@@ -2609,7 +2839,7 @@ function dictionary_about(player, show_ip) {
 
   form.label("§7© "+ (build_date.year > 2025 ? "2025 - " + build_date.year : build_date.year ) + " TheFelixLive. Licensed under the MIT License.")
 
-  if (!show_ip && server_ip) {
+  if (!show_ip && server_ip && save_data[player_sd_index].op) {
     form.button("Show Public IP");
     actions.push(() => {
       dictionary_about(player, true)
@@ -2771,7 +3001,7 @@ function dictionary_about_changelog_view(player, version) {
   const form = new ActionFormData().title("Changelog - " + version.name);
 
   // TODO: Markdown support
-  form.body(version.body)
+  form.body(markdownToMinecraft(version.body))
 
 
   const dateStr = `${build_date.day}.${build_date.month}.${build_date.year}`;
