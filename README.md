@@ -83,7 +83,7 @@ The Minecraft Bedrock RSS Reader is a script that lets players access real-time 
       [
          {
             "pack_id" : "f3c8b1d2-4a5e-4b6c-9f0e-7c8d9f1e2b3a",
-            "version" : [ 1, 0, 0 ]
+            "version" : [ 2, 0, 0 ]
          }
       ]
       ```
